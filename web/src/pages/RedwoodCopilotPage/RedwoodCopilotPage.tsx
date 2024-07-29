@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 import { Metadata } from '@redwoodjs/web'
 
 import { StreamProvider, useQuery, g } from 'src/StreamProvider'
@@ -86,66 +88,57 @@ const PromptMessageComponent = ({ prompt, message }) => {
 }
 
 const RedwoodCopilot = () => {
-  const prompt = 'What does this app do?'
-
+  const [prompt, setPrompt] = useState('')
+  const [currentPrompt, setCurrentPrompt] = useState('')
+  const [prompts, setPrompts] = useState([])
   const [{ data, fetching, error }] = useQuery({
     query: RedwoodCopilotQuery,
-    variables: { prompt }, // Pass the prompt variable here
+    variables: { prompt },
   })
+
+  const chat = () => {
+    setPrompt(currentPrompt)
+    setPrompts([...prompts, currentPrompt])
+  }
+
   return (
     <>
       <Metadata title="Redwood Copilot" description="Redwood Copilot page" />
 
       <h1>Redwood Copilot</h1>
-      <div className="container mx-auto flex h-screen flex-col bg-white">
-        {fetching && <p>Copilot is thinking...</p>}
+      <div className="container mx-auto my-8 flex flex-col bg-white">
         {error && <p>Error: {error.message}</p>}
-        {data?.redwoodCopilot ? (
-          <PromptMessageComponent
-            prompt={prompt}
-            message={data.redwoodCopilot}
-          />
-        ) : (
-          <p>No data</p>
-        )}
+
+        <div className="flex-1 overflow-y-auto">
+          {error && <p>Error: {error.message}</p>}
+          {fetching && <p>Copilot is thinking...</p>}
+          {prompts.map((prompt, index) => (
+            <PromptMessageComponent
+              key={index}
+              prompt={prompt}
+              message={data?.redwoodCopilot}
+            />
+          ))}
+        </div>
+
         <div className="flex flex-col">
           <form className="sticky bottom-0 flex w-full items-center rounded-md bg-slate-200 p-2 dark:bg-slate-900">
             <label htmlFor="prompt" className="sr-only">
               Enter your prompt
             </label>
-            <div>
-              <button
-                className="hover:text-blue-600 sm:p-2 dark:text-slate-200 dark:hover:text-blue-600"
-                type="button"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-6 w-6"
-                  aria-hidden="true"
-                  viewBox="0 0 24 24"
-                  strokeWidth="2"
-                  stroke="currentColor"
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-                  <path d="M12 5l0 14"></path>
-                  <path d="M5 12l14 0"></path>
-                </svg>
-                <span className="sr-only">Attach file</span>
-              </button>
-            </div>
+
             <textarea
               id="prompt"
               rows={1}
               className="mx-2 flex min-h-full w-full rounded-md border border-slate-300 bg-slate-200 p-2 text-base text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600 dark:border-slate-300/20 dark:bg-slate-800 dark:text-slate-200 dark:placeholder-slate-400 dark:focus:border-blue-600 dark:focus:ring-blue-600"
               placeholder="Enter your prompt"
+              onChange={(e) => setCurrentPrompt(e.target.value)}
             ></textarea>
             <div>
               <button
                 className="inline-flex hover:text-blue-600 sm:p-2 dark:text-slate-200 dark:hover:text-blue-600"
-                type="submit"
+                type="button"
+                onClick={() => chat()}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"

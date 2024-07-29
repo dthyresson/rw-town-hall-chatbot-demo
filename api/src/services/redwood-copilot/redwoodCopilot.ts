@@ -15,19 +15,19 @@ const readCodebaseFile = () => {
 }
 
 export const redwoodCopilot = async ({ prompt }) => {
-  const debug = true
+  const debug = false
   const url = 'https://api.langbase.com/beta/chat'
   const apiKey = process.env.LANGBASE_PIPE_API_KEY
 
-  const codebase = readCodebaseFile()
-  // console.debug('CODEBASE', codebase)
+  logger.debug('prompt', prompt)
 
-  const data = {
-    messages: [{ role: 'user', content: prompt }],
-    variables: [{ name: 'CODEBASE', value: codebase }],
+  if (!prompt || prompt.trim() === '') {
+    logger.warn('prompt is empty')
+    return []
   }
 
   if (debug) {
+    logger.debug({ prompt }, 'debug mode')
     return new Repeater<string>(async (push, stop) => {
       push('Hello, world!')
       push('\n')
@@ -38,6 +38,13 @@ export const redwoodCopilot = async ({ prompt }) => {
       push(prompt)
       stop()
     })
+  }
+
+  const codebase = readCodebaseFile()
+  // console.debug('CODEBASE', codebase)
+  const data = {
+    messages: [{ role: 'user', content: prompt }],
+    variables: [{ name: 'CODEBASE', value: codebase }],
   }
 
   const response = await fetch(url, {
