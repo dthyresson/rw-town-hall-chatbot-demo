@@ -15,7 +15,7 @@ const readCodebaseFile = () => {
 }
 
 export const redwoodCopilot = async ({ prompt }) => {
-  const debug = false
+  const debug = true
   const url = 'https://api.langbase.com/beta/chat'
   const apiKey = process.env.LANGBASE_PIPE_API_KEY
 
@@ -28,14 +28,30 @@ export const redwoodCopilot = async ({ prompt }) => {
 
   if (debug) {
     logger.debug({ prompt }, 'debug mode')
+
     return new Repeater<string>(async (push, stop) => {
-      push('Hello, world!')
-      push('\n')
-      push('This is a debug session')
-      push('\n')
-      push('Here is the prompt:')
-      push('\n')
-      push(prompt)
+      const delay = (ms: number) =>
+        new Promise((resolve) => setTimeout(resolve, ms))
+
+      await push('Hello, world!')
+      await delay(2000)
+
+      await push('\n')
+      await delay(2000)
+
+      await push('This is a debug session')
+      await delay(2000)
+
+      await push('\n')
+      await delay(2000)
+
+      await push('Here is the prompt:')
+      await delay(2000)
+
+      await push('\n')
+      await delay(2000)
+
+      await push(prompt)
       stop()
     })
   }

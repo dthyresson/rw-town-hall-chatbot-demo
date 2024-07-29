@@ -91,14 +91,19 @@ const RedwoodCopilot = () => {
   const [prompt, setPrompt] = useState('')
   const [currentPrompt, setCurrentPrompt] = useState('')
   const [prompts, setPrompts] = useState([])
-  const [{ data, fetching, error }] = useQuery({
+  const [{ data, fetching, error }, executeQuery] = useQuery({
     query: RedwoodCopilotQuery,
     variables: { prompt },
   })
 
   const chat = () => {
     setPrompt(currentPrompt)
-    setPrompts([...prompts, currentPrompt])
+    executeQuery({ prompt: currentPrompt })
+    console.log('fetching', fetching)
+    setPrompts([
+      ...prompts,
+      { prompt: currentPrompt, message: data?.redwoodCopilot },
+    ])
   }
 
   return (
@@ -110,13 +115,11 @@ const RedwoodCopilot = () => {
         {error && <p>Error: {error.message}</p>}
 
         <div className="flex-1 overflow-y-auto">
-          {error && <p>Error: {error.message}</p>}
-          {fetching && <p>Copilot is thinking...</p>}
           {prompts.map((prompt, index) => (
             <PromptMessageComponent
               key={index}
-              prompt={prompt}
-              message={data?.redwoodCopilot}
+              prompt={prompt.prompt}
+              message={prompt.message}
             />
           ))}
         </div>
