@@ -3,7 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
-    "@redwoodjs/api": "7.7.2",
-    "@redwoodjs/graphql-server": "7.7.2"
+    "@redwoodjs/api": "8.0.0-canary.1099",
+    "@redwoodjs/api-server": "8.0.0-canary.1099",
+    "@redwoodjs/graphql-server": "8.0.0-canary.1099",
+    "@redwoodjs/realtime": "8.0.0-canary.1099",
+    "ioredis": "^5"
   }
 }

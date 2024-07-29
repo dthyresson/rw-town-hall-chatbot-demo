@@ -16,6 +16,11 @@
 [api]
   port = 8911
 [browser]
-  open = true
+  open = false
 [notifications]
   versionUpdates = ["latest"]
+[generate]
+  tests = false
+  stories = false
+[experimental]
+  #useSDLCodeGenForGraphQLTypes = true

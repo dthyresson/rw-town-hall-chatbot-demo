@@ -1,0 +1,6 @@
+{
+  "050e9f72f1470962e940149a25ae5673fdf05cfc": "query FindAuctionQuery($id: ID!) @live { __typename auction: auction(id: $id) { __typename bids { __typename amount } highestBid { __typename amount } id title } }",
+  "d3f0563239a0671fc754ffeb304542b6a5a1c5bd": "query AuctionsQuery @live { __typename auctions { __typename bids { __typename amount } highestBid { __typename amount } id title } }",
+  "a8c92d9b67b0765d1899b9f5129bd61400d4ee52": "subscription ListenForNewMessagesInRoom($roomId: ID!) { newMessage(roomId: $roomId) { __typename body from } }",
+  "f2c9406d0553283e93af7ee7a414def38dae3a9e": "query RoomsQuery { __typename rooms }"
+}
