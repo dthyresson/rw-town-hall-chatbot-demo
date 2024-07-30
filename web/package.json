@@ -11,15 +11,16 @@
     ]
   },
   "dependencies": {
-    "@redwoodjs/forms": "8.0.0-canary.1099",
-    "@redwoodjs/router": "8.0.0-canary.1099",
-    "@redwoodjs/web": "8.0.0-canary.1099",
-    "react": "19.0.0-beta-04b058868c-20240508",
-    "react-dom": "19.0.0-beta-04b058868c-20240508",
+    "@redwoodjs/forms": "7.7.3",
+    "@redwoodjs/router": "7.7.3",
+    "@redwoodjs/web": "7.7.3",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-markdown": "^9.0.1",
     "urql": "^4.1.0"
   },
   "devDependencies": {
-    "@redwoodjs/vite": "8.0.0-canary.1099",
+    "@redwoodjs/vite": "7.7.3",
     "@types/react": "^18.2.55",
     "@types/react-dom": "^18.2.19",
     "autoprefixer": "^10.4.19",

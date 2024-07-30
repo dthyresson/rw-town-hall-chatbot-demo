@@ -160,7 +160,8 @@ The best way to learn Redwood is by going through the comprehensive [tutorial](h
 [generate]
   tests = false
   stories = false
-
+[experimental]
+  useSDLCodeGenForGraphQLTypes = true
 
 ```
 
@@ -214,6 +215,19 @@ scalar BigInt
 
 scalar Byte
 
+type ChatCompletion {
+  id: ID!
+  message: String!
+  prompt: String!
+  threadId: ID!
+}
+
+input CreateChatCompletionInput {
+  debug: Boolean = false
+  prompt: String!
+  stream: Boolean = true
+}
+
 scalar Date
 
 scalar DateTime
@@ -241,6 +255,8 @@ type Query {
   alphabet: [String!]!
   auction(id: ID!): Auction
   auctions: [Auction!]!
+  chatCompletions(threadId: ID!): [ChatCompletion!]!
+  createChatCompletion(input: CreateChatCompletionInput!): [ChatCompletion!]!
 
   """A field that resolves fast."""
   fastField: String!
@@ -407,6 +423,46 @@ handlePrismaLogging({
 
 ```
 
+#### api/src/lib/id.ts
+
+```ts file="api/src/lib/id.ts"
+import { customAlphabet } from 'nanoid'
+
+/** Custom nanoid function with a specific alphabet */
+export const nanoid = customAlphabet(
+  '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+)
+
+/** Object containing prefixes for different entity types */
+const prefixes = {
+  bucket: 'chat_completion',
+  test: 'test', // <-- for tests only
+} as const
+
+/** Options for creating a new identifier */
+type NewIdentifierOptions = {
+  /** Whether to include a timestamp in the identifier to help with sorting */
+  includeTimestamp?: boolean
+}
+
+/**
+ * Generates a new unique identifier
+ * @param prefix - The prefix for the identifier
+ * @param options - Options for generating the identifier
+ * @returns A string containing the new unique identifier
+ */
+export const newId = (
+  prefix: keyof typeof prefixes,
+  options?: NewIdentifierOptions
+): string => {
+  const includeTimestamp = options?.includeTimestamp ?? true
+  const now = process.hrtime.bigint()
+  const timestamp = includeTimestamp ? String(now) : ''
+  return [prefixes[prefix], timestamp, nanoid(12)].join('_')
+}
+
+```
+
 #### api/src/lib/logger.ts
 
 ```ts file="api/src/lib/logger.ts"
@@ -533,6 +589,32 @@ export const schema = gql`
 
 ```
 
+#### api/src/graphql/chatCompletion.sdl.ts
+
+```ts file="api/src/graphql/chatCompletion.sdl.ts"
+export const schema = gql`
+  type ChatCompletion {
+    id: ID!
+    threadId: ID!
+    prompt: String!
+    message: String!
+  }
+
+  type Query {
+    chatCompletions(threadId: ID!): [ChatCompletion!]! @skipAuth
+    createChatCompletion(input: CreateChatCompletionInput!): [ChatCompletion!]!
+      @skipAuth
+  }
+
+  input CreateChatCompletionInput {
+    prompt: String!
+    stream: Boolean = true
+    debug: Boolean = false
+  }
+`
+
+```
+
 #### api/src/graphql/fastAndSlowFields.sdl.ts
 
 ```ts file="api/src/graphql/fastAndSlowFields.sdl.ts"
@@ -629,6 +711,32 @@ export const schema = gql`
 
 ```
 
+#### api/src/graphql/chatCompletion.sdl.ts
+
+```ts file="api/src/graphql/chatCompletion.sdl.ts"
+export const schema = gql`
+  type ChatCompletion {
+    id: ID!
+    threadId: ID!
+    prompt: String!
+    message: String!
+  }
+
+  type Query {
+    chatCompletions(threadId: ID!): [ChatCompletion!]! @skipAuth
+    createChatCompletion(input: CreateChatCompletionInput!): [ChatCompletion!]!
+      @skipAuth
+  }
+
+  input CreateChatCompletionInput {
+    prompt: String!
+    stream: Boolean = true
+    debug: Boolean = false
+  }
+`
+
+```
+
 #### api/src/graphql/fastAndSlowFields.sdl.ts
 
 ```ts file="api/src/graphql/fastAndSlowFields.sdl.ts"
@@ -702,7 +810,7 @@ export const alphabet = async () => {
       }
     }
 
-    const interval = setInterval(publish, 1000)
+    const interval = setInterval(publish, 250)
 
     stop.then(() => {
       logger.debug('cancel')
@@ -794,6 +902,146 @@ export const Auction = {
 
     return max
   },
+}
+
+```
+
+#### api/src/services/chatCompletions/chatCompletions.ts
+
+```ts file="api/src/services/chatCompletions/chatCompletions.ts"
+import fs from 'fs'
+import path from 'path'
+
+import { getPaths } from '@redwoodjs/internal'
+import { Repeater } from '@redwoodjs/realtime'
+
+import { logger } from 'src/lib/logger'
+
+const CODEBASE = 'CODEBASE_TOC.md'
+
+const readCodebaseFile = () => {
+  const paths = getPaths()
+  const filePath = path.join(paths.base, CODEBASE)
+  return fs.readFileSync(filePath, 'utf-8')
+}
+
+const seconds = 200
+
+type ChatCompletion = {
+  id: string
+  threadId: string
+  message: string
+  prompt: string
+}
+
+const streamDebugChatCompletion = (prompt: string) => {
+  logger.debug({ prompt }, 'debug mode prompt')
+
+  return new Repeater<ChatCompletion>(async (push, stop) => {
+    const messages = ['Hello ', 'world!', '\n', 'This is ', 'a debug ', 'session'];
+
+    for (const message of messages) {
+      logger.debug({ message, prompt }, 'debug mode message')
+      await push({ id: '1', threadId: '2', message, prompt })
+      logger.debug(`Delaying for ${seconds}ms`)
+      await new Promise(resolve => setTimeout(resolve, seconds))
+      logger.debug('Delay complete')
+    }
+
+    logger.debug('All messages sent')
+    stop()
+  })
+}
+
+export const createChatCompletion =  async ({ input }) => {
+  const { prompt, debug, stream } = input
+
+  const url = 'https://api.langbase.com/beta/chat'
+  const apiKey = process.env.LANGBASE_PIPE_API_KEY
+
+  logger.debug('prompt', prompt)
+
+  if (!prompt || prompt.trim() === '') {
+    logger.warn('prompt is empty')
+    return new Repeater<ChatCompletion>(async (push, stop) => {
+      const messages = ['Did you ', 'mean to ask ', 'something?'];
+
+      for (const message of messages) {
+        logger.debug({ message, prompt }, 'empty prompt message')
+        await push({ id: '1', threadId: '1', message, prompt })
+        logger.debug(`Delaying for ${seconds}ms`)
+        await new Promise(resolve => setTimeout(resolve, seconds))
+        logger.debug('Delay complete')
+      }
+
+      logger.debug('All empty prompt messages sent')
+      stop()
+    })
+  }
+
+  if (debug) {
+    return streamDebugChatCompletion(prompt)
+    }
+
+  const codebase = readCodebaseFile()
+  // console.debug('CODEBASE', codebase)
+  const data = {
+    messages: [{ role: 'user', content: prompt }],
+    variables: [{ name: 'CODEBASE', value: codebase }],
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: apiKey,
+    },
+    body: JSON.stringify(data),
+  })
+
+  if (!response.ok) return console.error(await response.json())
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder('utf-8')
+
+  return new Repeater<ChatCompletion>(async (push, stop) => {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) {
+        stop()
+        break
+      }
+      const chunk = decoder.decode(value)
+      const lines = chunk.split('\n').filter((line) => line.trim() !== '')
+
+      for (const line of lines) {
+        if (line.startsWith('data:')) {
+          const data = line.substring('data:'.length).trim()
+          if (data === '[DONE]') {
+            stop()
+            break
+          }
+          const json = JSON.parse(data)
+          if (json.choices[0].delta.content) {
+            const content = json.choices[0].delta.content
+            const chatCompletion = {
+              id: '1',
+              threadId: '1',
+              message: content,
+              prompt,
+            }
+            console.debug(chatCompletion, "Publish each content piece as received")
+            push(chatCompletion)
+          }
+        }
+      }
+    }
+
+    stop.then(() => {
+      logger.debug('cancel')
+    })
+  })
 }
 
 ```
@@ -1093,6 +1341,7 @@ import { Router, Route } from '@redwoodjs/router'
 const Routes = () => {
   return (
     <Router>
+      <Route path="/redwood-copilot" page={RedwoodCopilotPage} name="redwoodCopilot" />
       <Route path="/alphabet" page={AlphabetPage} name="alphabet" />
       <Route path="/chat-rooms" page={ChatRoomsPage} name="chatRooms" />
       <Route path="/chat/{id:ID}" page={ChatPage} name="chat" />
@@ -1345,6 +1594,9 @@ const HomePage = () => {
       <p>
         <Link to={routes.alphabet()}>Alphabet</Link>
       </p>
+      <p>
+        <Link to={routes.redwoodCopilot()}>Redwood Copilot</Link>
+      </p>
     </>
   )
 }
@@ -1400,6 +1652,108 @@ export default () => (
     </section>
   </main>
 )
+
+```
+
+#### web/src/pages/RedwoodCopilotPage/RedwoodCopilotPage.tsx
+
+```tsx file="web/src/pages/RedwoodCopilotPage/RedwoodCopilotPage.tsx"
+import { useState, useEffect, useRef } from 'react'
+
+import { Metadata } from '@redwoodjs/web'
+
+import { StreamProvider, g, useQuery } from 'src/StreamProvider'
+import { set } from '@redwoodjs/forms'
+
+const ChatCompletionQuery = g(`
+  query ChatCompletionQuery($input: CreateChatCompletionInput!) {
+    createChatCompletion(input: $input) @stream {
+      id
+      message
+      threadId
+    }
+  }`)
+
+const RedwoodCopilot = () => {
+  const [prompt, setPrompt] = useState('')
+  const [{ data, fetching, error }, executeQuery] = useQuery({
+    query: ChatCompletionQuery,
+    variables: { input: { prompt, debug: false, stream: true } },
+    pause: true,
+  })
+  const [message, setMessage] = useState('')
+  const lastMessageLengthRef = useRef(0)
+
+
+  useEffect(() => {
+    if (data?.createChatCompletion) {
+      setMessage(prevMessage => {
+        const fullNewMessage = data.createChatCompletion
+          .map(item => item.message)
+          .join('')
+        const newContent = fullNewMessage.slice(lastMessageLengthRef.current)
+        lastMessageLengthRef.current = fullNewMessage.length
+        return [prevMessage, newContent].join('')
+      })
+    }
+  }, [data])
+
+  const handleSend = () => {
+    const promptValue = (document.querySelector('input[name="prompt"]') as HTMLInputElement).value
+    setMessage('')
+    setPrompt(promptValue)
+    executeQuery()
+  }
+
+  return (
+    <main className="flex flex-col h-screen container mx-auto lg:w-1/2">
+      <h1 className="text-4xl font-bold text-center py-4">Redwood Copilot</h1>
+
+      <div className="flex-grow overflow-auto px-4">
+        {fetching && (
+          <div className="text-purple-600">
+            AI is thinking
+            <span className="inline-block animate-pulse">...</span>
+          </div>
+        )}
+        {error && <div>Error: {error.message}</div>}
+        {message && (
+          <div className='space-y-2'>
+            <div className='text-md bg-blue-200 text-gray-600 p-4 border border-gray-300 rounded-md border-solid'>{prompt}</div>
+            <div className='text-md bg-gray-100 text-gray-600 p-4 border border-gray-300 rounded-md border-solid'>{message}</div>
+          </div>
+        ) }
+      </div>
+
+      <div className="sticky bottom-0 w-full bg-white p-4 shadow-md">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            name="prompt"
+            placeholder="Enter your prompt"
+            required
+            className="flex-grow px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            onClick={() => handleSend()}
+            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    </main>
+  )
+}
+
+// add urql provider
+const RedwoodCopilotPage = () => (
+  <StreamProvider>
+    <RedwoodCopilot />
+  </StreamProvider>
+)
+
+export default RedwoodCopilotPage
 
 ```
 

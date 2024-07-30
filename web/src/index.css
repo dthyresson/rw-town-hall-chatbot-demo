@@ -11,3 +11,18 @@
 /**
  * END --- SETUP TAILWINDCSS EDIT
  */
+
+ /* .markdown-content {
+  /* Add your custom styles here */
+/* } */
+
+.markdown-content h1 {
+  font-size: 1.5em;
+  font-weight: bold;
+}
+
+.markdown-content code {
+  background-color: #f0f0f0;
+  padding: 2px 4px;
+  border-radius: 4px;
+}

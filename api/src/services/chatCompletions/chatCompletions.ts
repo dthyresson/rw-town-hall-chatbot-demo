@@ -14,8 +14,37 @@ const readCodebaseFile = () => {
   return fs.readFileSync(filePath, 'utf-8')
 }
 
-export const redwoodCopilot = async ({ prompt }) => {
-  const debug = true
+const seconds = 200
+
+type ChatCompletion = {
+  id: string
+  threadId: string
+  message: string
+  prompt: string
+}
+
+const streamDebugChatCompletion = (prompt: string) => {
+  logger.debug({ prompt }, 'debug mode prompt')
+
+  return new Repeater<ChatCompletion>(async (push, stop) => {
+    const messages = ['Hello ', 'world!', '\n', 'This is ', 'a debug ', 'session'];
+
+    for (const message of messages) {
+      logger.debug({ message, prompt }, 'debug mode message')
+      await push({ id: '1', threadId: '2', message, prompt })
+      logger.debug(`Delaying for ${seconds}ms`)
+      await new Promise(resolve => setTimeout(resolve, seconds))
+      logger.debug('Delay complete')
+    }
+
+    logger.debug('All messages sent')
+    stop()
+  })
+}
+
+export const createChatCompletion =  async ({ input }) => {
+  const { prompt, debug, stream } = input
+
   const url = 'https://api.langbase.com/beta/chat'
   const apiKey = process.env.LANGBASE_PIPE_API_KEY
 
@@ -23,38 +52,25 @@ export const redwoodCopilot = async ({ prompt }) => {
 
   if (!prompt || prompt.trim() === '') {
     logger.warn('prompt is empty')
-    return []
-  }
+    return new Repeater<ChatCompletion>(async (push, stop) => {
+      const messages = ['Did you ', 'mean to ask ', 'something?'];
 
-  if (debug) {
-    logger.debug({ prompt }, 'debug mode')
+      for (const message of messages) {
+        logger.debug({ message, prompt }, 'empty prompt message')
+        await push({ id: '1', threadId: '1', message, prompt })
+        logger.debug(`Delaying for ${seconds}ms`)
+        await new Promise(resolve => setTimeout(resolve, seconds))
+        logger.debug('Delay complete')
+      }
 
-    return new Repeater<string>(async (push, stop) => {
-      const delay = (ms: number) =>
-        new Promise((resolve) => setTimeout(resolve, ms))
-
-      await push('Hello, world!')
-      await delay(2000)
-
-      await push('\n')
-      await delay(2000)
-
-      await push('This is a debug session')
-      await delay(2000)
-
-      await push('\n')
-      await delay(2000)
-
-      await push('Here is the prompt:')
-      await delay(2000)
-
-      await push('\n')
-      await delay(2000)
-
-      await push(prompt)
+      logger.debug('All empty prompt messages sent')
       stop()
     })
   }
+
+  if (debug) {
+    return streamDebugChatCompletion(prompt)
+    }
 
   const codebase = readCodebaseFile()
   // console.debug('CODEBASE', codebase)
@@ -77,7 +93,7 @@ export const redwoodCopilot = async ({ prompt }) => {
   const reader = response.body.getReader()
   const decoder = new TextDecoder('utf-8')
 
-  return new Repeater<string>(async (push, stop) => {
+  return new Repeater<ChatCompletion>(async (push, stop) => {
     // eslint-disable-next-line no-constant-condition
     while (true) {
       const { done, value } = await reader.read()
@@ -98,8 +114,14 @@ export const redwoodCopilot = async ({ prompt }) => {
           const json = JSON.parse(data)
           if (json.choices[0].delta.content) {
             const content = json.choices[0].delta.content
-            console.debug(content)
-            push(content) // Publish each content piece as received
+            const chatCompletion = {
+              id: '1',
+              threadId: '1',
+              message: content,
+              prompt,
+            }
+            console.debug(chatCompletion, "Publish each content piece as received")
+            push(chatCompletion)
           }
         }
       }
