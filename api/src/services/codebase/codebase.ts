@@ -1,6 +1,12 @@
-import { generate } from 'src/lib/codebaseGenerator/codebaseGenerator'
-import type { GenCodebaseArgs } from 'src/lib/codebaseGenerator/codebaseGenerator'
+import type { GenerateCodebaseResolver } from 'types/codebase'
+import type { GenCodebaseInput } from 'types/shared-schema-types'
 
-export const generateCodebase = async (args: GenCodebaseArgs) => {
+import { generate } from 'src/lib/codebaseGenerator/codebaseGenerator'
+
+export const generateCodebase: GenerateCodebaseResolver = async ({
+  args,
+}: {
+  args: GenCodebaseInput
+}) => {
   return await generate(args)
 }

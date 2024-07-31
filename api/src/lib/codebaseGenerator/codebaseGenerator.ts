@@ -1,6 +1,7 @@
 import * as fs from 'fs'
 
 import fg from 'fast-glob'
+import type { GenCodebaseInput } from 'types/shared-schema-types'
 
 import { getConfig, getPaths } from '@redwoodjs/project-config'
 
@@ -148,11 +149,7 @@ const addFilesToTOC = (sectionFiles: string[], toc: string[]) => {
   })
 }
 
-export interface GenCodebaseArgs {
-  upload?: boolean
-}
-
-export const generate = async (args: GenCodebaseArgs) => {
+export const generate = async (args?: GenCodebaseInput) => {
   logger.info(':: Generating codebase table of contents ::')
 
   const files = await getCodeFiles()
@@ -164,7 +161,7 @@ export const generate = async (args: GenCodebaseArgs) => {
   //   `:: Table of contents generated ::`
   // )
 
-  if (args.upload) {
+  if (args?.upload) {
     const { signedUrl } = await getSignedUploadUrl()
 
     if (signedUrl) {

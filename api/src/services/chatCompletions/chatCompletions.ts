@@ -39,7 +39,7 @@ export const createChatCompletion = async ({ input }) => {
             {
               role: 'system',
               content:
-                "You're a helpful AI assistant that is an expert in web development and developer tools and technologies including Prisma, GraphQL, SQL, React, Javascript, Typescript and RedwoodJS. Be concise in your answers.",
+                "You're a helpful AI assistant that is an expert in web development and developer tools and technologies including Prisma, GraphQL, SQL, React, Javascript, Typescript and RedwoodJS. Be concise in your answers. Respond in markdown.",
             },
             {
               role: 'user',
