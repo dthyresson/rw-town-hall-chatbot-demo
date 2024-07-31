@@ -1,4 +1,4 @@
-import { generateCodebase } from 'api/src/lib/codebaseGenerator/codebaseGenerator'
+import { generate } from 'api/src/lib/codebaseGenerator/codebaseGenerator'
 import * as dotenv from 'dotenv'
 
 dotenv.config()
@@ -14,5 +14,5 @@ export default async (
     args?: GenCodebaseArgs
   } = { args: { upload: false } }
 ) => {
-  await generateCodebase(args)
+  await generate(args)
 }

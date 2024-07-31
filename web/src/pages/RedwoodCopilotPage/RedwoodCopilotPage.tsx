@@ -1,6 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
-
-import ReactMarkdown from 'react-markdown'
+import { useState } from 'react'
 
 import { StreamProvider, g, useQuery } from 'src/StreamProvider'
 
@@ -15,32 +13,19 @@ const ChatCompletionQuery = g(`
 
 const RedwoodCopilot = () => {
   const [prompt, setPrompt] = useState('')
+
+  const shouldPause = !prompt || prompt.trim() === ''
   const [{ data, fetching, error }, executeQuery] = useQuery({
     query: ChatCompletionQuery,
-    variables: { input: { prompt, debug: true, stream: true } },
-    pause: true,
+    variables: { input: { prompt, debug: false, stream: true } },
+    pause: shouldPause,
   })
-  const [message, setMessage] = useState('')
-  const lastMessageLengthRef = useRef(0)
-
-  useEffect(() => {
-    if (data?.createChatCompletion) {
-      setMessage((prevMessage) => {
-        const fullNewMessage = data.createChatCompletion
-          .map((item) => item.message)
-          .join('')
-        const newContent = fullNewMessage.slice(lastMessageLengthRef.current)
-        lastMessageLengthRef.current = fullNewMessage.length
-        return [prevMessage, newContent].join('')
-      })
-    }
-  }, [data])
+  // const [message, setMessage] = useState('')
 
   const handleSend = () => {
     const promptValue = (
       document.querySelector('input[name="prompt"]') as HTMLInputElement
     ).value
-    setMessage('')
     setPrompt(promptValue)
     executeQuery()
   }
@@ -51,24 +36,18 @@ const RedwoodCopilot = () => {
 
       <div className="flex-grow overflow-auto px-4">
         <div className="space-y-2">
-          {fetching && (
-            <div className="space-y-2">
-              <div className="animate-pulse text-center text-xl font-bold text-purple-600">
-                AI is thinking ...
-              </div>
-              <div className="text-md rounded-md border border-solid border-gray-300 bg-blue-200 p-4 text-gray-600">
-                {prompt}
-              </div>
-            </div>
-          )}
           {error && <div>Error: {error.message}</div>}
-          {message && (
+          {data && (
             <div className="space-y-2">
               <div className="text-md rounded-md border border-solid border-gray-300 bg-blue-200 p-4 text-gray-600">
                 {prompt}
               </div>
               <div className="text-md rounded-md border border-solid border-gray-300 bg-gray-100 p-4 text-gray-600">
-                <ReactMarkdown>{message}</ReactMarkdown>
+                <pre className="whitespace-pre-wrap">
+                  {data.createChatCompletion.map((completion) => (
+                    <span key={completion.id}>{completion.message}</span>
+                  ))}
+                </pre>
               </div>
             </div>
           )}

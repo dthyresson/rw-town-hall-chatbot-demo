@@ -232,6 +232,10 @@ scalar Date
 
 scalar DateTime
 
+input GenCodebaseInput {
+  upload: Boolean = false
+}
+
 scalar JSON
 
 scalar JSONObject
@@ -243,6 +247,7 @@ type Message {
 
 type Mutation {
   bid(input: BidInput!): Bid
+  generateCodebase(args: GenCodebaseInput): Boolean
   sendMessage(input: SendMessageInput!): Message!
 }
 
@@ -681,7 +686,7 @@ const getSignedUploadUrl = async () => {
   return signedUploadUrl
 }
 
-async function uploadDocument(signedUrl, filePath) {
+const uploadDocument = async (signedUrl, filePath) => {
   const file = fs.readFileSync(filePath, 'utf-8')
   logger.info({ signedUrl }, 'Uploading document to Langbase')
   try {
@@ -700,12 +705,12 @@ async function uploadDocument(signedUrl, filePath) {
   }
 }
 
-function getRedwoodAppTitle(): string {
+const getRedwoodAppTitle = (): string => {
   const config = getConfig()
   return config.web.title ?? 'Redwood App'
 }
 
-async function getCodeFiles(): Promise<string[]> {
+const getCodeFiles = async (): Promise<string[]> => {
   const paths = getPaths()
 
   const rwFiles = fg.globSync(['redwood.toml', 'README.md'])
@@ -719,7 +724,7 @@ async function getCodeFiles(): Promise<string[]> {
   return [...rwFiles, ...dbFiles, ...graphQLFiles, ...apiFiles, ...webFiles]
 }
 
-function createMarkdownTOC(files: string[]): string {
+const createMarkdownTOC = (files: string[]): string => {
   const appTitle = getRedwoodAppTitle()
   const toc = [`#  ${appTitle} - Codebase Table of Contents`]
   const paths = getPaths()
@@ -765,10 +770,11 @@ function createMarkdownTOC(files: string[]): string {
   return toc.join('\n')
 }
 
-function addFilesToTOC(sectionFiles: string[], toc: string[]) {
+const addFilesToTOC = (sectionFiles: string[], toc: string[]) => {
   const paths = getPaths()
   sectionFiles.forEach((file) => {
     const relativePath = file.replace(paths.base + '/', '')
+    logger.debug(`Adding ${relativePath} to TOC`)
     toc.push(`#### ${relativePath}\n`)
     const content = fs.readFileSync(file, 'utf-8')
     const fileExtension = file.split('.').pop()
@@ -778,18 +784,21 @@ function addFilesToTOC(sectionFiles: string[], toc: string[]) {
   })
 }
 
-interface GenCodebaseArgs {
+export interface GenCodebaseArgs {
   upload?: boolean
 }
 
-export const generateCodebase = async (args: GenCodebaseArgs) => {
+export const generate = async (args: GenCodebaseArgs) => {
   logger.info(':: Generating codebase table of contents ::')
 
   const files = await getCodeFiles()
   const tocContent = createMarkdownTOC(files)
 
   fs.writeFileSync(CODEBASE_FILENAME, tocContent)
-  logger.info(`:: Table of contents generated ::`)
+  logger.info(
+    { tocContent, CODEBASE_FILENAME },
+    `:: Table of contents generated ::`
+  )
 
   if (args.upload) {
     const { signedUrl } = await getSignedUploadUrl()
@@ -803,6 +812,8 @@ export const generateCodebase = async (args: GenCodebaseArgs) => {
       )
     }
   }
+
+  return true
 }
 
 ```
@@ -892,6 +903,21 @@ export const schema = gql`
     prompt: String!
     stream: Boolean = true
     debug: Boolean = false
+  }
+`
+
+```
+
+#### api/src/graphql/codebaseGenerator.sdl.ts
+
+```ts file="api/src/graphql/codebaseGenerator.sdl.ts"
+export const schema = gql`
+  input GenCodebaseInput {
+    upload: Boolean = false
+  }
+
+  type Mutation {
+    generateCodebase(args: GenCodebaseInput): Boolean @skipAuth
   }
 `
 
@@ -1014,6 +1040,21 @@ export const schema = gql`
     prompt: String!
     stream: Boolean = true
     debug: Boolean = false
+  }
+`
+
+```
+
+#### api/src/graphql/codebaseGenerator.sdl.ts
+
+```ts file="api/src/graphql/codebaseGenerator.sdl.ts"
+export const schema = gql`
+  input GenCodebaseInput {
+    upload: Boolean = false
+  }
+
+  type Mutation {
+    generateCodebase(args: GenCodebaseInput): Boolean @skipAuth
   }
 `
 
@@ -1284,6 +1325,18 @@ export const createChatCompletion = async ({ input }) => {
       logger.debug('cancel')
     })
   })
+}
+
+```
+
+#### api/src/services/codebase/codebase.ts
+
+```ts file="api/src/services/codebase/codebase.ts"
+import { generate } from 'src/lib/codebaseGenerator/codebaseGenerator'
+import type { GenCodebaseArgs } from 'src/lib/codebaseGenerator/codebaseGenerator'
+
+export const generateCodebase = async (args: GenCodebaseArgs) => {
+  return await generate(args)
 }
 
 ```

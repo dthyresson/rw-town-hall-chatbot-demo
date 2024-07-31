@@ -50,7 +50,7 @@ const getSignedUploadUrl = async () => {
   return signedUploadUrl
 }
 
-async function uploadDocument(signedUrl, filePath) {
+const uploadDocument = async (signedUrl, filePath) => {
   const file = fs.readFileSync(filePath, 'utf-8')
   logger.info({ signedUrl }, 'Uploading document to Langbase')
   try {
@@ -69,12 +69,12 @@ async function uploadDocument(signedUrl, filePath) {
   }
 }
 
-function getRedwoodAppTitle(): string {
+const getRedwoodAppTitle = (): string => {
   const config = getConfig()
   return config.web.title ?? 'Redwood App'
 }
 
-async function getCodeFiles(): Promise<string[]> {
+const getCodeFiles = async (): Promise<string[]> => {
   const paths = getPaths()
 
   const rwFiles = fg.globSync(['redwood.toml', 'README.md'])
@@ -88,7 +88,7 @@ async function getCodeFiles(): Promise<string[]> {
   return [...rwFiles, ...dbFiles, ...graphQLFiles, ...apiFiles, ...webFiles]
 }
 
-function createMarkdownTOC(files: string[]): string {
+const createMarkdownTOC = (files: string[]): string => {
   const appTitle = getRedwoodAppTitle()
   const toc = [`#  ${appTitle} - Codebase Table of Contents`]
   const paths = getPaths()
@@ -134,10 +134,11 @@ function createMarkdownTOC(files: string[]): string {
   return toc.join('\n')
 }
 
-function addFilesToTOC(sectionFiles: string[], toc: string[]) {
+const addFilesToTOC = (sectionFiles: string[], toc: string[]) => {
   const paths = getPaths()
   sectionFiles.forEach((file) => {
     const relativePath = file.replace(paths.base + '/', '')
+    logger.debug(`Adding ${relativePath} to TOC`)
     toc.push(`#### ${relativePath}\n`)
     const content = fs.readFileSync(file, 'utf-8')
     const fileExtension = file.split('.').pop()
@@ -147,18 +148,21 @@ function addFilesToTOC(sectionFiles: string[], toc: string[]) {
   })
 }
 
-interface GenCodebaseArgs {
+export interface GenCodebaseArgs {
   upload?: boolean
 }
 
-export const generateCodebase = async (args: GenCodebaseArgs) => {
+export const generate = async (args: GenCodebaseArgs) => {
   logger.info(':: Generating codebase table of contents ::')
 
   const files = await getCodeFiles()
   const tocContent = createMarkdownTOC(files)
 
   fs.writeFileSync(CODEBASE_FILENAME, tocContent)
-  logger.info(`:: Table of contents generated ::`)
+  // logger.info(
+  //   { tocContent, CODEBASE_FILENAME },
+  //   `:: Table of contents generated ::`
+  // )
 
   if (args.upload) {
     const { signedUrl } = await getSignedUploadUrl()
@@ -172,4 +176,6 @@ export const generateCodebase = async (args: GenCodebaseArgs) => {
       )
     }
   }
+
+  return true
 }

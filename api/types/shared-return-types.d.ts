@@ -32,6 +32,11 @@ export interface CreateChatCompletionInput {
   stream?: boolean | null
 }
 
+export interface GenCodebaseInput {
+  __typename?: 'GenCodebaseInput'
+  upload?: boolean | null
+}
+
 export interface Message {
   __typename?: 'Message'
   body?: string | null
@@ -41,6 +46,7 @@ export interface Message {
 export interface Mutation {
   __typename?: 'Mutation'
   bid?: Bid | null
+  generateCodebase?: boolean | null
   sendMessage: Message
 }
 
