@@ -17,7 +17,7 @@ const RedwoodCopilot = () => {
   const [prompt, setPrompt] = useState('')
   const [{ data, fetching, error }, executeQuery] = useQuery({
     query: ChatCompletionQuery,
-    variables: { input: { prompt, debug: false, stream: true } },
+    variables: { input: { prompt, debug: true, stream: true } },
     pause: true,
   })
   const [message, setMessage] = useState('')
@@ -47,7 +47,7 @@ const RedwoodCopilot = () => {
 
   return (
     <main className="container mx-auto flex h-screen flex-col lg:w-1/2">
-      <h1 className="py-4 text-center text-4xl font-bold">Redwood Copilot</h1>
+      <h1 className="py-4 text-4xl font-bold">Redwoodie</h1>
 
       <div className="flex-grow overflow-auto px-4">
         <div className="space-y-2">
@@ -75,12 +75,12 @@ const RedwoodCopilot = () => {
         </div>
       </div>
 
-      <div className="sticky bottom-0 w-full bg-white p-4 shadow-md">
+      <div className="sticky bottom-0 w-full bg-white p-4">
         <div className="flex gap-2">
           <input
             type="text"
             name="prompt"
-            placeholder="Enter your prompt"
+            placeholder="Ask me anything about your RedwoodJS project"
             required
             className="flex-grow rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />

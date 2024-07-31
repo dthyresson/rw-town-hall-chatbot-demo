@@ -538,6 +538,288 @@ export const realtime: RedwoodRealtimeOptions = {
 
 ```
 
+#### api/src/lib/chatCompletions/codeGenerator.ts
+
+```ts file="api/src/lib/chatCompletions/codeGenerator.ts"
+import fs from 'fs'
+import path from 'path'
+
+import { getPaths } from '@redwoodjs/internal'
+
+import { logger } from 'src/lib/logger'
+
+export const CODEBASE = 'CODEBASE_TOC.md'
+
+export const readCodebaseFile = () => {
+  const paths = getPaths()
+  const filePath = path.join(paths.base, CODEBASE)
+  logger.debug({ filePath }, 'Reading codebase file')
+  return fs.readFileSync(filePath, 'utf-8')
+}
+
+```
+
+#### api/src/lib/chatCompletions/helpers.ts
+
+```ts file="api/src/lib/chatCompletions/helpers.ts"
+import { Repeater } from '@redwoodjs/realtime'
+
+import type { ChatCompletion } from 'src/lib/chatCompletions/types'
+import { logger } from 'src/lib/logger'
+
+const DEFAULT_DELAY_SECONDS = 200
+
+const streamCompletion = (
+  prompt = '',
+  messages: string[],
+  _delay: number = DEFAULT_DELAY_SECONDS
+) => {
+  return new Repeater<ChatCompletion>(async (push, stop) => {
+    for (const message of messages) {
+      logger.debug({ message, prompt }, 'debug mode message')
+      await push({ id: '1', threadId: '2', message, prompt })
+      logger.debug(`Delaying for ${DEFAULT_DELAY_SECONDS}ms`)
+      await new Promise((resolve) => setTimeout(resolve, DEFAULT_DELAY_SECONDS))
+      logger.debug('Delay complete')
+    }
+
+    logger.debug('All messages sent')
+    stop()
+  })
+}
+
+export const streamDebugChatCompletion = (prompt: string) => {
+  logger.debug({ prompt }, 'debug mode prompt')
+
+  return streamCompletion(prompt, [
+    'Hello ',
+    'world!',
+    '\n',
+    'This is ',
+    'a debug ',
+    'session',
+  ])
+}
+
+export const streamEmptyPromptCompletion = (prompt: string) => {
+  logger.warn('prompt is empty')
+  const messages = ['Did you ', 'mean to ask ', 'something?']
+  return streamCompletion(prompt, messages)
+}
+
+export const streamErrorCompletion = (prompt: string) => {
+  logger.error('error')
+  return streamCompletion(prompt, ['Oops ', 'somethiig went ', 'wrong!'])
+}
+
+```
+
+#### api/src/lib/chatCompletions/types.ts
+
+```ts file="api/src/lib/chatCompletions/types.ts"
+export type ChatCompletion = {
+  id: string
+  threadId: string
+  message: string
+  prompt: string
+}
+
+```
+
+#### api/src/lib/codebaseGenerator/codebaseGenerator.ts
+
+```ts file="api/src/lib/codebaseGenerator/codebaseGenerator.ts"
+import * as fs from 'fs'
+
+import fg from 'fast-glob'
+
+import { getConfig, getPaths } from '@redwoodjs/project-config'
+
+import {
+  LANGBASE_API_KEY,
+  LANGBASE_MEMORY_DOCUMENTS_ENDPOINT,
+} from 'src/lib/langbase/langbase'
+import { logger } from 'src/lib/logger'
+
+export const CODEBASE_FILENAME = 'CODEBASE_TOC.md'
+
+const getSignedUploadUrl = async () => {
+  if (!LANGBASE_API_KEY) {
+    throw new Error('LANGBASE_API_KEY is not set in the environment variables')
+  }
+
+  const memoryName = process.env.LANGBASE_MEMORY_NAME
+  const ownerLogin = process.env.LANGBASE_OWNER_LOGIN
+
+  if (!memoryName || !ownerLogin) {
+    throw new Error(
+      'LANGBASE_MEMORY_NAME and LANGBASE_OWNER_LOGIN must be set in the environment variables'
+    )
+  }
+
+  const newDoc = {
+    memoryName,
+    ownerLogin,
+    fileName: CODEBASE_FILENAME,
+  }
+
+  logger.info('Creating new document in Langbase:', newDoc)
+  logger.info('URL:', LANGBASE_MEMORY_DOCUMENTS_ENDPOINT)
+  logger.info('API Key:', LANGBASE_API_KEY)
+
+  const response = await fetch(LANGBASE_MEMORY_DOCUMENTS_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${LANGBASE_API_KEY}`,
+    },
+    body: JSON.stringify(newDoc),
+  })
+
+  const signedUploadUrl = await response.json()
+
+  return signedUploadUrl
+}
+
+async function uploadDocument(signedUrl, filePath) {
+  const file = fs.readFileSync(filePath, 'utf-8')
+  logger.info({ signedUrl }, 'Uploading document to Langbase')
+  try {
+    const response = await fetch(signedUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'text/markdown',
+      },
+      body: file,
+    })
+
+    return response
+  } catch (error) {
+    logger.error({ error }, 'Error uploading document to Langbase')
+    throw error
+  }
+}
+
+function getRedwoodAppTitle(): string {
+  const config = getConfig()
+  return config.web.title ?? 'Redwood App'
+}
+
+async function getCodeFiles(): Promise<string[]> {
+  const paths = getPaths()
+
+  const rwFiles = fg.globSync(['redwood.toml', 'README.md'])
+  const dbFiles = fg.globSync(`${paths.api.db}/**/*.prisma`)
+  const graphQLFiles = fg.globSync([
+    `${paths.generated.schema}`,
+    `${paths.api.graphql}/**/*.{ts,js}`,
+  ])
+  const apiFiles = fg.globSync(`${paths.api.src}/**/*.{ts,js,tsx,jsx}`)
+  const webFiles = fg.globSync(`${paths.web.src}/**/*.{ts,js,tsx,jsx}`)
+  return [...rwFiles, ...dbFiles, ...graphQLFiles, ...apiFiles, ...webFiles]
+}
+
+function createMarkdownTOC(files: string[]): string {
+  const appTitle = getRedwoodAppTitle()
+  const toc = [`#  ${appTitle} - Codebase Table of Contents`]
+  const paths = getPaths()
+  const sections = {
+    'README.md': '## Readme',
+    'redwood.toml': '## Redwood Config',
+    API: {
+      [paths.generated.schema]: '### GraphQL Schema',
+      [paths.api.db]: '### DB',
+      [paths.api.src + '/server.ts']: '### Server',
+      [paths.api.src + '/lib']: '### Lib',
+      [paths.api.src + '/graphql']: '### GraphQL',
+      [paths.api.src + '/services']: '### Services',
+      [paths.api.src + '/directives']: '### GraphQL -> Directives',
+      [paths.api.src + '/subscriptions']: '### GraphQL -> Subscriptions',
+    },
+    Web: {
+      [paths.web.src + '/Routes.tsx']: '### Routes',
+      [paths.web.src + '/layouts']: '### Layouts',
+      [paths.web.src + '/pages']: '### Pages',
+      [paths.web.src + '/components']: '### Components',
+      [paths.web.src + '/App.tsx']: '### App',
+    },
+  }
+
+  for (const [section, content] of Object.entries(sections)) {
+    if (typeof content === 'string') {
+      toc.push(`\n${content}\n`)
+      const sectionFiles = files.filter((file) => file === section)
+      addFilesToTOC(sectionFiles, toc)
+    } else {
+      toc.push(`\n## ${section}\n`)
+      for (const [dir, heading] of Object.entries(content)) {
+        const sectionFiles = files.filter((file) => file.startsWith(dir))
+        if (sectionFiles.length > 0) {
+          toc.push(`${heading}\n`)
+          addFilesToTOC(sectionFiles, toc)
+        }
+      }
+    }
+  }
+
+  return toc.join('\n')
+}
+
+function addFilesToTOC(sectionFiles: string[], toc: string[]) {
+  const paths = getPaths()
+  sectionFiles.forEach((file) => {
+    const relativePath = file.replace(paths.base + '/', '')
+    toc.push(`#### ${relativePath}\n`)
+    const content = fs.readFileSync(file, 'utf-8')
+    const fileExtension = file.split('.').pop()
+    toc.push(
+      `\`\`\`${fileExtension} file="${relativePath}"\n${content}\n\`\`\`\n`
+    )
+  })
+}
+
+interface GenCodebaseArgs {
+  upload?: boolean
+}
+
+export const generateCodebase = async (args: GenCodebaseArgs) => {
+  logger.info(':: Generating codebase table of contents ::')
+
+  const files = await getCodeFiles()
+  const tocContent = createMarkdownTOC(files)
+
+  fs.writeFileSync(CODEBASE_FILENAME, tocContent)
+  logger.info(`:: Table of contents generated ::`)
+
+  if (args.upload) {
+    const { signedUrl } = await getSignedUploadUrl()
+
+    if (signedUrl) {
+      logger.info(':: Uploading table of contents to Langbase ::')
+      await uploadDocument(signedUrl, CODEBASE_FILENAME)
+    } else {
+      logger.error(
+        ':: Failed to get signed URL for uploading table of contents to Langbase ::'
+      )
+    }
+  }
+}
+
+```
+
+#### api/src/lib/langbase/langbase.ts
+
+```ts file="api/src/lib/langbase/langbase.ts"
+export const LANGBASE_MEMORY_DOCUMENTS_ENDPOINT =
+  process.env.LANGBASE_API_URL ||
+  'https://api.langbase.com/beta/user/memorysets/documents'
+
+export const LANGBASE_API_KEY = process.env.LANGBASE_API_KEY
+
+export const LANGBASE_CHAT_ENDPOINT = 'https://api.langbase.com/beta/chat'
+
+```
+
 ### GraphQL
 
 #### api/src/graphql/alphabet.sdl.ts
@@ -909,97 +1191,53 @@ export const Auction = {
 #### api/src/services/chatCompletions/chatCompletions.ts
 
 ```ts file="api/src/services/chatCompletions/chatCompletions.ts"
-import fs from 'fs'
-import path from 'path'
-
-import { getPaths } from '@redwoodjs/internal'
 import { Repeater } from '@redwoodjs/realtime'
 
+import { readCodebaseFile } from 'src/lib/chatCompletions/codeGenerator'
+import {
+  streamEmptyPromptCompletion,
+  streamDebugChatCompletion,
+  streamErrorCompletion,
+} from 'src/lib/chatCompletions/helpers'
+import type { ChatCompletion } from 'src/lib/chatCompletions/types'
+import {
+  LANGBASE_API_KEY,
+  LANGBASE_CHAT_ENDPOINT,
+} from 'src/lib/langbase/langbase'
 import { logger } from 'src/lib/logger'
 
-const CODEBASE = 'CODEBASE_TOC.md'
-
-const readCodebaseFile = () => {
-  const paths = getPaths()
-  const filePath = path.join(paths.base, CODEBASE)
-  return fs.readFileSync(filePath, 'utf-8')
-}
-
-const seconds = 200
-
-type ChatCompletion = {
-  id: string
-  threadId: string
-  message: string
-  prompt: string
-}
-
-const streamDebugChatCompletion = (prompt: string) => {
-  logger.debug({ prompt }, 'debug mode prompt')
-
-  return new Repeater<ChatCompletion>(async (push, stop) => {
-    const messages = ['Hello ', 'world!', '\n', 'This is ', 'a debug ', 'session'];
-
-    for (const message of messages) {
-      logger.debug({ message, prompt }, 'debug mode message')
-      await push({ id: '1', threadId: '2', message, prompt })
-      logger.debug(`Delaying for ${seconds}ms`)
-      await new Promise(resolve => setTimeout(resolve, seconds))
-      logger.debug('Delay complete')
-    }
-
-    logger.debug('All messages sent')
-    stop()
-  })
-}
-
-export const createChatCompletion =  async ({ input }) => {
-  const { prompt, debug, stream } = input
-
-  const url = 'https://api.langbase.com/beta/chat'
-  const apiKey = process.env.LANGBASE_PIPE_API_KEY
+export const createChatCompletion = async ({ input }) => {
+  const { prompt, debug, _stream } = input
 
   logger.debug('prompt', prompt)
 
   if (!prompt || prompt.trim() === '') {
-    logger.warn('prompt is empty')
-    return new Repeater<ChatCompletion>(async (push, stop) => {
-      const messages = ['Did you ', 'mean to ask ', 'something?'];
-
-      for (const message of messages) {
-        logger.debug({ message, prompt }, 'empty prompt message')
-        await push({ id: '1', threadId: '1', message, prompt })
-        logger.debug(`Delaying for ${seconds}ms`)
-        await new Promise(resolve => setTimeout(resolve, seconds))
-        logger.debug('Delay complete')
-      }
-
-      logger.debug('All empty prompt messages sent')
-      stop()
-    })
+    return streamEmptyPromptCompletion(prompt)
   }
 
   if (debug) {
     return streamDebugChatCompletion(prompt)
-    }
-
-  const codebase = readCodebaseFile()
-  // console.debug('CODEBASE', codebase)
-  const data = {
-    messages: [{ role: 'user', content: prompt }],
-    variables: [{ name: 'CODEBASE', value: codebase }],
   }
 
-  const response = await fetch(url, {
+  const data = {
+    messages: [{ role: 'user', content: prompt }],
+    variables: [{ name: 'CODEBASE', value: readCodebaseFile() }],
+  }
+
+  logger.debug(data, '>>> data')
+
+  const response = await fetch(LANGBASE_CHAT_ENDPOINT, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: apiKey,
+      Authorization: LANGBASE_API_KEY,
     },
     body: JSON.stringify(data),
   })
 
-  if (!response.ok) return console.error(await response.json())
+  if (!response.ok) {
+    return streamErrorCompletion(prompt)
+  }
 
   const reader = response.body.getReader()
   const decoder = new TextDecoder('utf-8')
@@ -1022,17 +1260,21 @@ export const createChatCompletion =  async ({ input }) => {
             stop()
             break
           }
-          const json = JSON.parse(data)
-          if (json.choices[0].delta.content) {
-            const content = json.choices[0].delta.content
-            const chatCompletion = {
-              id: '1',
-              threadId: '1',
-              message: content,
-              prompt,
+          try {
+            const json = JSON.parse(data)
+            if (json.choices[0]?.delta?.content) {
+              const content = json.choices[0].delta.content
+              const chatCompletion = {
+                id: '1',
+                threadId: '1',
+                message: content,
+                prompt,
+              }
+              console.debug(chatCompletion, 'Publish chat chunk')
+              push(chatCompletion)
             }
-            console.debug(chatCompletion, "Publish each content piece as received")
-            push(chatCompletion)
+          } catch (error) {
+            logger.warn({ error, data }, 'Error parsing JSON chunk')
           }
         }
       }
@@ -1660,10 +1902,9 @@ export default () => (
 ```tsx file="web/src/pages/RedwoodCopilotPage/RedwoodCopilotPage.tsx"
 import { useState, useEffect, useRef } from 'react'
 
-import { Metadata } from '@redwoodjs/web'
+import ReactMarkdown from 'react-markdown'
 
 import { StreamProvider, g, useQuery } from 'src/StreamProvider'
-import { set } from '@redwoodjs/forms'
 
 const ChatCompletionQuery = g(`
   query ChatCompletionQuery($input: CreateChatCompletionInput!) {
@@ -1678,18 +1919,17 @@ const RedwoodCopilot = () => {
   const [prompt, setPrompt] = useState('')
   const [{ data, fetching, error }, executeQuery] = useQuery({
     query: ChatCompletionQuery,
-    variables: { input: { prompt, debug: false, stream: true } },
+    variables: { input: { prompt, debug: true, stream: true } },
     pause: true,
   })
   const [message, setMessage] = useState('')
   const lastMessageLengthRef = useRef(0)
 
-
   useEffect(() => {
     if (data?.createChatCompletion) {
-      setMessage(prevMessage => {
+      setMessage((prevMessage) => {
         const fullNewMessage = data.createChatCompletion
-          .map(item => item.message)
+          .map((item) => item.message)
           .join('')
         const newContent = fullNewMessage.slice(lastMessageLengthRef.current)
         lastMessageLengthRef.current = fullNewMessage.length
@@ -1699,44 +1939,56 @@ const RedwoodCopilot = () => {
   }, [data])
 
   const handleSend = () => {
-    const promptValue = (document.querySelector('input[name="prompt"]') as HTMLInputElement).value
+    const promptValue = (
+      document.querySelector('input[name="prompt"]') as HTMLInputElement
+    ).value
     setMessage('')
     setPrompt(promptValue)
     executeQuery()
   }
 
   return (
-    <main className="flex flex-col h-screen container mx-auto lg:w-1/2">
-      <h1 className="text-4xl font-bold text-center py-4">Redwood Copilot</h1>
+    <main className="container mx-auto flex h-screen flex-col lg:w-1/2">
+      <h1 className="py-4 text-4xl font-bold">Redwoodie</h1>
 
       <div className="flex-grow overflow-auto px-4">
-        {fetching && (
-          <div className="text-purple-600">
-            AI is thinking
-            <span className="inline-block animate-pulse">...</span>
-          </div>
-        )}
-        {error && <div>Error: {error.message}</div>}
-        {message && (
-          <div className='space-y-2'>
-            <div className='text-md bg-blue-200 text-gray-600 p-4 border border-gray-300 rounded-md border-solid'>{prompt}</div>
-            <div className='text-md bg-gray-100 text-gray-600 p-4 border border-gray-300 rounded-md border-solid'>{message}</div>
-          </div>
-        ) }
+        <div className="space-y-2">
+          {fetching && (
+            <div className="space-y-2">
+              <div className="animate-pulse text-center text-xl font-bold text-purple-600">
+                AI is thinking ...
+              </div>
+              <div className="text-md rounded-md border border-solid border-gray-300 bg-blue-200 p-4 text-gray-600">
+                {prompt}
+              </div>
+            </div>
+          )}
+          {error && <div>Error: {error.message}</div>}
+          {message && (
+            <div className="space-y-2">
+              <div className="text-md rounded-md border border-solid border-gray-300 bg-blue-200 p-4 text-gray-600">
+                {prompt}
+              </div>
+              <div className="text-md rounded-md border border-solid border-gray-300 bg-gray-100 p-4 text-gray-600">
+                <ReactMarkdown>{message}</ReactMarkdown>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="sticky bottom-0 w-full bg-white p-4 shadow-md">
+      <div className="sticky bottom-0 w-full bg-white p-4">
         <div className="flex gap-2">
           <input
             type="text"
             name="prompt"
-            placeholder="Enter your prompt"
+            placeholder="Ask me anything about your RedwoodJS project"
             required
-            className="flex-grow px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-grow rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
             onClick={() => handleSend()}
-            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             Send
           </button>

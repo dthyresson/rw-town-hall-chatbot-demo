@@ -1,94 +1,50 @@
-import fs from 'fs'
-import path from 'path'
-
-import { getPaths } from '@redwoodjs/internal'
 import { Repeater } from '@redwoodjs/realtime'
 
+import { readCodebaseFile } from 'src/lib/chatCompletions/codeGenerator'
+import {
+  streamEmptyPromptCompletion,
+  streamDebugChatCompletion,
+  streamErrorCompletion,
+} from 'src/lib/chatCompletions/helpers'
+import type { ChatCompletion } from 'src/lib/chatCompletions/types'
+import {
+  LANGBASE_API_KEY,
+  LANGBASE_CHAT_ENDPOINT,
+} from 'src/lib/langbase/langbase'
 import { logger } from 'src/lib/logger'
 
-const CODEBASE = 'CODEBASE_TOC.md'
-
-const readCodebaseFile = () => {
-  const paths = getPaths()
-  const filePath = path.join(paths.base, CODEBASE)
-  return fs.readFileSync(filePath, 'utf-8')
-}
-
-const seconds = 200
-
-type ChatCompletion = {
-  id: string
-  threadId: string
-  message: string
-  prompt: string
-}
-
-const streamDebugChatCompletion = (prompt: string) => {
-  logger.debug({ prompt }, 'debug mode prompt')
-
-  return new Repeater<ChatCompletion>(async (push, stop) => {
-    const messages = ['Hello ', 'world!', '\n', 'This is ', 'a debug ', 'session'];
-
-    for (const message of messages) {
-      logger.debug({ message, prompt }, 'debug mode message')
-      await push({ id: '1', threadId: '2', message, prompt })
-      logger.debug(`Delaying for ${seconds}ms`)
-      await new Promise(resolve => setTimeout(resolve, seconds))
-      logger.debug('Delay complete')
-    }
-
-    logger.debug('All messages sent')
-    stop()
-  })
-}
-
-export const createChatCompletion =  async ({ input }) => {
-  const { prompt, debug, stream } = input
-
-  const url = 'https://api.langbase.com/beta/chat'
-  const apiKey = process.env.LANGBASE_PIPE_API_KEY
+export const createChatCompletion = async ({ input }) => {
+  const { prompt, debug, _stream } = input
 
   logger.debug('prompt', prompt)
 
   if (!prompt || prompt.trim() === '') {
-    logger.warn('prompt is empty')
-    return new Repeater<ChatCompletion>(async (push, stop) => {
-      const messages = ['Did you ', 'mean to ask ', 'something?'];
-
-      for (const message of messages) {
-        logger.debug({ message, prompt }, 'empty prompt message')
-        await push({ id: '1', threadId: '1', message, prompt })
-        logger.debug(`Delaying for ${seconds}ms`)
-        await new Promise(resolve => setTimeout(resolve, seconds))
-        logger.debug('Delay complete')
-      }
-
-      logger.debug('All empty prompt messages sent')
-      stop()
-    })
+    return streamEmptyPromptCompletion(prompt)
   }
 
   if (debug) {
     return streamDebugChatCompletion(prompt)
-    }
-
-  const codebase = readCodebaseFile()
-  // console.debug('CODEBASE', codebase)
-  const data = {
-    messages: [{ role: 'user', content: prompt }],
-    variables: [{ name: 'CODEBASE', value: codebase }],
   }
 
-  const response = await fetch(url, {
+  const data = {
+    messages: [{ role: 'user', content: prompt }],
+    variables: [{ name: 'CODEBASE', value: readCodebaseFile() }],
+  }
+
+  logger.debug(data, '>>> data')
+
+  const response = await fetch(LANGBASE_CHAT_ENDPOINT, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: apiKey,
+      Authorization: LANGBASE_API_KEY,
     },
     body: JSON.stringify(data),
   })
 
-  if (!response.ok) return console.error(await response.json())
+  if (!response.ok) {
+    return streamErrorCompletion(prompt)
+  }
 
   const reader = response.body.getReader()
   const decoder = new TextDecoder('utf-8')
@@ -111,17 +67,21 @@ export const createChatCompletion =  async ({ input }) => {
             stop()
             break
           }
-          const json = JSON.parse(data)
-          if (json.choices[0].delta.content) {
-            const content = json.choices[0].delta.content
-            const chatCompletion = {
-              id: '1',
-              threadId: '1',
-              message: content,
-              prompt,
+          try {
+            const json = JSON.parse(data)
+            if (json.choices[0]?.delta?.content) {
+              const content = json.choices[0].delta.content
+              const chatCompletion = {
+                id: '1',
+                threadId: '1',
+                message: content,
+                prompt,
+              }
+              console.debug(chatCompletion, 'Publish chat chunk')
+              push(chatCompletion)
             }
-            console.debug(chatCompletion, "Publish each content piece as received")
-            push(chatCompletion)
+          } catch (error) {
+            logger.warn({ error, data }, 'Error parsing JSON chunk')
           }
         }
       }
