@@ -8,14 +8,16 @@ const DEFAULT_DELAY_SECONDS = 200
 const streamCompletion = (
   prompt = '',
   messages: string[],
-  _delay: number = DEFAULT_DELAY_SECONDS
+  delay: number = DEFAULT_DELAY_SECONDS,
+  initialDelay = 0
 ) => {
   return new Repeater<ChatCompletion>(async (push, stop) => {
+    await new Promise((resolve) => setTimeout(resolve, initialDelay))
     for (const message of messages) {
       logger.debug({ message, prompt }, 'debug mode message')
       await push({ id: '1', threadId: '2', message, prompt })
-      logger.debug(`Delaying for ${DEFAULT_DELAY_SECONDS}ms`)
-      await new Promise((resolve) => setTimeout(resolve, DEFAULT_DELAY_SECONDS))
+      logger.debug(`Delaying for ${delay}ms`)
+      await new Promise((resolve) => setTimeout(resolve, delay))
       logger.debug('Delay complete')
     }
 
@@ -27,14 +29,12 @@ const streamCompletion = (
 export const streamDebugChatCompletion = (prompt: string) => {
   logger.debug({ prompt }, 'debug mode prompt')
 
-  return streamCompletion(prompt, [
-    'Hello ',
-    'world!',
-    '\n',
-    'This is ',
-    'a debug ',
-    'session',
-  ])
+  return streamCompletion(
+    prompt,
+    ['Hello ', 'world!', '\n', 'This is ', 'a debug ', 'session'],
+    DEFAULT_DELAY_SECONDS,
+    2_250
+  )
 }
 
 export const streamEmptyPromptCompletion = (prompt: string) => {
@@ -45,5 +45,5 @@ export const streamEmptyPromptCompletion = (prompt: string) => {
 
 export const streamErrorCompletion = (prompt: string) => {
   logger.error('error')
-  return streamCompletion(prompt, ['Oops ', 'somethiig went ', 'wrong!'])
+  return streamCompletion(prompt, ['Oops ', 'something went ', 'wrong!'])
 }
