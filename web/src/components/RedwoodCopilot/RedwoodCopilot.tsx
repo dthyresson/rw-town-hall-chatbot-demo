@@ -33,28 +33,27 @@ const CodeBlock = ({ className, children }) => {
 const debug = false
 const stream = true
 
+const thinkingStatements = [
+  'Photosynthesizing ideas...',
+  'Growing neural branches...',
+  'Calculating trunk circumference...',
+  'Analyzing Redwood DNA...',
+  'Consulting with wise old trees...',
+  'Uploading forest knowledge...',
+  'Debugging squirrel queries...',
+  'Optimizing pinecone algorithms...',
+  'Branching out for solutions...',
+  'Rooting through data forests...',
+]
+
+const getRandomThinkingStatement = () => {
+  return thinkingStatements[
+    Math.floor(Math.random() * thinkingStatements.length)
+  ]
+}
 const RedwoodCopilotComponent = () => {
   const [prompt, setPrompt] = useState('')
   const [thinkingStatement, setThinkingStatement] = useState('')
-
-  const thinkingStatements = [
-    "I'm thinking...",
-    'Processing your request...',
-    'Analyzing the code...',
-    'Searching for the best answer...',
-    'Compiling information...',
-    'Crunching the data...',
-    'Pondering deeply...',
-    'Consulting my neural networks...',
-    'Exploring possibilities...',
-    'Synthesizing a response...',
-  ]
-
-  const getRandomThinkingStatement = () => {
-    return thinkingStatements[
-      Math.floor(Math.random() * thinkingStatements.length)
-    ]
-  }
 
   const [{ data, fetching, error }, executeQuery] = useQuery({
     query: ChatCompletionQuery,
@@ -82,8 +81,8 @@ const RedwoodCopilotComponent = () => {
                     <img
                       src={avatarThinking}
                       alt="Redwood Copilot is thinking"
-                      className="h-24 "
-                    />{' '}
+                      className="h-24"
+                    />
                   </div>
                   <div className="ml-3 text-green-600">{thinkingStatement}</div>
                 </div>
@@ -134,6 +133,12 @@ const RedwoodCopilotComponent = () => {
             name="prompt"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                handleSend()
+              }
+            }}
             placeholder="Ask me anything about your RedwoodJS project"
             required
             disabled={fetching}
@@ -154,6 +159,9 @@ const RedwoodCopilotComponent = () => {
             />
             Ask!
           </button>
+        </div>
+        <div className="mt-2 text-center text-sm text-gray-500">
+          Redwood Copilot might make mistakes. I am just a tree.
         </div>
       </div>
     </main>
