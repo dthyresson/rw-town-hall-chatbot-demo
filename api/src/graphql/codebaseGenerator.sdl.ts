@@ -6,4 +6,7 @@ export const schema = gql`
   type Mutation {
     generateCodebase(args: GenCodebaseInput): Boolean @skipAuth
   }
+  type Query {
+    codebase: String @skipAuth
+  }
 `

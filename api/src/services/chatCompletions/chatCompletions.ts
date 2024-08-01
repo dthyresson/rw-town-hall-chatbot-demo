@@ -1,12 +1,12 @@
 import { Repeater } from '@redwoodjs/realtime'
 
-import { readCodebaseFile } from 'src/lib/chatCompletions/codeGenerator'
 import {
   streamEmptyPromptCompletion,
   streamDebugChatCompletion,
   streamErrorCompletion,
 } from 'src/lib/chatCompletions/helpers'
 import type { ChatCompletion } from 'src/lib/chatCompletions/types'
+import { readCodebaseFile } from 'src/lib/codebaseGenerator/codebase'
 import { logger } from 'src/lib/logger'
 import { openAIClient } from 'src/lib/openAI/openAI'
 

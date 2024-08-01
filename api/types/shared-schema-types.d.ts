@@ -32,6 +32,13 @@ export interface CreateChatCompletionInput {
   stream?: boolean | null
 }
 
+export interface CreatePostInput {
+  __typename?: 'CreatePostInput'
+  author: string
+  body?: string | null
+  title: string
+}
+
 export interface GenCodebaseInput {
   __typename?: 'GenCodebaseInput'
   upload?: boolean | null
@@ -46,8 +53,21 @@ export interface Message {
 export interface Mutation {
   __typename?: 'Mutation'
   bid?: Bid | null
+  createPost: Post
+  deletePost: Post
   generateCodebase?: boolean | null
   sendMessage: Message
+  updatePost: Post
+}
+
+export interface Post {
+  __typename?: 'Post'
+  author: string
+  body?: string | null
+  createdAt: DateTime
+  id: number
+  title: string
+  updatedAt: DateTime
 }
 
 export interface Query {
@@ -56,8 +76,11 @@ export interface Query {
   auction?: Auction | null
   auctions: Auction[]
   chatCompletions: ChatCompletion[]
+  codebase?: string | null
   createChatCompletion: ChatCompletion[]
   fastField: string
+  post?: Post | null
+  posts: Post[]
   redwood?: Redwood | null
   room: Message[]
   rooms: ID[]
@@ -84,5 +107,13 @@ export interface Subscription {
   newMessage: Message
 }
 
+export interface UpdatePostInput {
+  __typename?: 'UpdatePostInput'
+  author?: string | null
+  body?: string | null
+  title?: string | null
+}
+
 type ID = any
+type DateTime = any
 type JSON = any

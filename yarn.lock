@@ -22437,6 +22437,7 @@ __metadata:
     "@types/react-dom": "npm:^18.2.19"
     "@types/react-syntax-highlighter": "npm:^15"
     autoprefixer: "npm:^10.4.19"
+    humanize-string: "npm:2.1.0"
     postcss: "npm:^8.4.38"
     postcss-loader: "npm:^8.1.1"
     react: "npm:18.2.0"

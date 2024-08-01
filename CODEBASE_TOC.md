@@ -1,132 +1,23 @@
-#  Redwood App - Codebase Table of Contents
+#  Redwood Copilot Demo - Codebase Table of Contents
 
 ## Readme
 
 #### README.md
 
 ```md file="README.md"
-# README
+# Redwood Copilot Demo
+## with OpenAI and GraphQL Streaming
 
-Welcome to [RedwoodJS](https://redwoodjs.com)!
 
-> **Prerequisites**
->
-> - Redwood requires [Node.js](https://nodejs.org/en/) (=20.x) and [Yarn](https://yarnpkg.com/)
-> - Are you on Windows? For best results, follow our [Windows development setup](https://redwoodjs.com/docs/how-to/windows-development-setup) guide
+###
+Codebase Generator
+First we generate a file with your entire RedwoodJS project.
 
-Start by installing dependencies:
+### OpenAI
+We send that codebase to OpenAI and ask questions about it using our Redwood Copilot chatbot.
 
-```
-yarn install
-```
-
-Then start the development server:
-
-```
-yarn redwood dev
-```
-
-Your browser should automatically open to [http://localhost:8910](http://localhost:8910) where you'll see the Welcome Page, which links out to many great resources.
-
-> **The Redwood CLI**
->
-> Congratulations on running your first Redwood CLI command! From dev to deploy, the CLI is with you the whole way. And there's quite a few commands at your disposal:
->
-> ```
-> yarn redwood --help
-> ```
->
-> For all the details, see the [CLI reference](https://redwoodjs.com/docs/cli-commands).
-
-## Prisma and the database
-
-Redwood wouldn't be a full-stack framework without a database. It all starts with the schema. Open the [`schema.prisma`](api/db/schema.prisma) file in `api/db` and replace the `UserExample` model with the following `Post` model:
-
-```prisma
-model Post {
-  id        Int      @id @default(autoincrement())
-  title     String
-  body      String
-  createdAt DateTime @default(now())
-}
-```
-
-Redwood uses [Prisma](https://www.prisma.io/), a next-gen Node.js and TypeScript ORM, to talk to the database. Prisma's schema offers a declarative way of defining your app's data models. And Prisma [Migrate](https://www.prisma.io/migrate) uses that schema to make database migrations hassle-free:
-
-```
-yarn rw prisma migrate dev
-
-# ...
-
-? Enter a name for the new migration: › create posts
-```
-
-> `rw` is short for `redwood`
-
-You'll be prompted for the name of your migration. `create posts` will do.
-
-Now let's generate everything we need to perform all the CRUD (Create, Retrieve, Update, Delete) actions on our `Post` model:
-
-```
-yarn redwood generate scaffold post
-```
-
-Navigate to [http://localhost:8910/posts/new](http://localhost:8910/posts/new), fill in the title and body, and click "Save".
-
-Did we just create a post in the database? Yup! With `yarn rw generate scaffold <model>`, Redwood created all the pages, components, and services necessary to perform all CRUD actions on our posts table.
-
-## Frontend first with Storybook
-
-Don't know what your data models look like? That's more than ok—Redwood integrates Storybook so that you can work on design without worrying about data. Mockup, build, and verify your React components, even in complete isolation from the backend:
-
-```
-yarn rw storybook
-```
-
-Seeing "Couldn't find any stories"? That's because you need a `*.stories.{tsx,jsx}` file. The Redwood CLI makes getting one easy enough—try generating a [Cell](https://redwoodjs.com/docs/cells), Redwood's data-fetching abstraction:
-
-```
-yarn rw generate cell examplePosts
-```
-
-The Storybook server should hot reload and now you'll have four stories to work with. They'll probably look a little bland since there's no styling. See if the Redwood CLI's `setup ui` command has your favorite styling library:
-
-```
-yarn rw setup ui --help
-```
-
-## Testing with Jest
-
-It'd be hard to scale from side project to startup without a few tests. Redwood fully integrates Jest with both the front- and back-ends, and makes it easy to keep your whole app covered by generating test files with all your components and services:
-
-```
-yarn rw test
-```
-
-To make the integration even more seamless, Redwood augments Jest with database [scenarios](https://redwoodjs.com/docs/testing#scenarios)  and [GraphQL mocking](https://redwoodjs.com/docs/testing#mocking-graphql-calls).
-
-## Ship it
-
-Redwood is designed for both serverless deploy targets like Netlify and Vercel and serverful deploy targets like Render and AWS:
-
-```
-yarn rw setup deploy --help
-```
-
-Don't go live without auth! Lock down your app with Redwood's built-in, database-backed authentication system ([dbAuth](https://redwoodjs.com/docs/authentication#self-hosted-auth-installation-and-setup)), or integrate with nearly a dozen third-party auth providers:
-
-```
-yarn rw setup auth --help
-```
-
-## Next Steps
-
-The best way to learn Redwood is by going through the comprehensive [tutorial](https://redwoodjs.com/docs/tutorial/foreword) and joining the community (via the [Discourse forum](https://community.redwoodjs.com) or the [Discord server](https://discord.gg/redwoodjs)).
-
-## Quick Links
-
-- Stay updated: read [Forum announcements](https://community.redwoodjs.com/c/announcements/5), follow us on [Twitter](https://twitter.com/redwoodjs), and subscribe to the [newsletter](https://redwoodjs.com/newsletter)
-- [Learn how to contribute](https://redwoodjs.com/docs/contributing)
+###GraphQL Streaming
+Redwood Realtime with GraphQL Streaming will stream the response from OpenAI to the client.
 
 ```
 
@@ -144,7 +35,7 @@ The best way to learn Redwood is by going through the comprehensive [tutorial](h
 # https://redwoodjs.com/docs/app-configuration-redwood-toml
 
 [web]
-  title = "Redwood App"
+  title = "Redwood Copilot Demo"
   port = 8910
   apiUrl = "/.redwood/functions" # You can customize graphql and dbauth urls individually too: see https://redwoodjs.com/docs/app-configuration-redwood-toml#api-paths
   includeEnvironmentVariables = [
@@ -228,6 +119,12 @@ input CreateChatCompletionInput {
   stream: Boolean = true
 }
 
+input CreatePostInput {
+  author: String!
+  body: String
+  title: String!
+}
+
 scalar Date
 
 scalar DateTime
@@ -247,8 +144,20 @@ type Message {
 
 type Mutation {
   bid(input: BidInput!): Bid
+  createPost(input: CreatePostInput!): Post!
+  deletePost(id: Int!): Post!
   generateCodebase(args: GenCodebaseInput): Boolean
   sendMessage(input: SendMessageInput!): Message!
+  updatePost(id: Int!, input: UpdatePostInput!): Post!
+}
+
+type Post {
+  author: String!
+  body: String
+  createdAt: DateTime!
+  id: Int!
+  title: String!
+  updatedAt: DateTime!
 }
 
 """About the Redwood queries."""
@@ -261,10 +170,13 @@ type Query {
   auction(id: ID!): Auction
   auctions: [Auction!]!
   chatCompletions(threadId: ID!): [ChatCompletion!]!
+  codebase: String
   createChatCompletion(input: CreateChatCompletionInput!): [ChatCompletion!]!
 
   """A field that resolves fast."""
   fastField: String!
+  post(id: Int!): Post
+  posts: [Post!]!
 
   """Fetches the Redwood root schema."""
   redwood: Redwood
@@ -306,6 +218,12 @@ type Subscription {
 }
 
 scalar Time
+
+input UpdatePostInput {
+  author: String
+  body: String
+  title: String
+}
 ```
 
 ### DB
@@ -329,13 +247,13 @@ generator client {
   binaryTargets = "native"
 }
 
-// Define your own datamodels here and run `yarn redwood prisma migrate dev`
-// to create migrations for them and apply to your dev DB.
-// TODO: Please remove the following example:
-model UserExample {
-  id    Int     @id @default(autoincrement())
-  email String  @unique
-  name  String?
+model Post {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  title     String   @unique
+  body      String?
+  author    String
 }
 
 ```
@@ -543,9 +461,76 @@ export const realtime: RedwoodRealtimeOptions = {
 
 ```
 
-#### api/src/lib/chatCompletions/codeGenerator.ts
+#### api/src/lib/chatCompletions/helpers.ts
 
-```ts file="api/src/lib/chatCompletions/codeGenerator.ts"
+```ts file="api/src/lib/chatCompletions/helpers.ts"
+import { Repeater } from '@redwoodjs/realtime'
+
+import type { ChatCompletion } from 'src/lib/chatCompletions/types'
+import { logger } from 'src/lib/logger'
+
+const DEFAULT_DELAY_SECONDS = 200
+
+const streamCompletion = (
+  prompt = '',
+  messages: string[],
+  delay: number = DEFAULT_DELAY_SECONDS,
+  initialDelay = 0
+) => {
+  return new Repeater<ChatCompletion>(async (push, stop) => {
+    await new Promise((resolve) => setTimeout(resolve, initialDelay))
+    for (const message of messages) {
+      logger.debug({ message, prompt }, 'debug mode message')
+      await push({ id: '1', threadId: '2', message, prompt })
+      logger.debug(`Delaying for ${delay}ms`)
+      await new Promise((resolve) => setTimeout(resolve, delay))
+      logger.debug('Delay complete')
+    }
+
+    logger.debug('All messages sent')
+    stop()
+  })
+}
+
+export const streamDebugChatCompletion = (prompt: string) => {
+  logger.debug({ prompt }, 'debug mode prompt')
+
+  return streamCompletion(
+    prompt,
+    ['Hello ', 'world!', '\n', 'This is ', 'a debug ', 'session'],
+    DEFAULT_DELAY_SECONDS,
+    2_250
+  )
+}
+
+export const streamEmptyPromptCompletion = (prompt: string) => {
+  logger.warn('prompt is empty')
+  const messages = ['Did you ', 'mean to ask ', 'something?']
+  return streamCompletion(prompt, messages)
+}
+
+export const streamErrorCompletion = (prompt: string) => {
+  logger.error('error')
+  return streamCompletion(prompt, ['Oops ', 'something went ', 'wrong!'])
+}
+
+```
+
+#### api/src/lib/chatCompletions/types.ts
+
+```ts file="api/src/lib/chatCompletions/types.ts"
+export type ChatCompletion = {
+  id: string
+  threadId: string
+  message: string
+  prompt: string
+}
+
+```
+
+#### api/src/lib/codebaseGenerator/codebase.ts
+
+```ts file="api/src/lib/codebaseGenerator/codebase.ts"
 import fs from 'fs'
 import path from 'path'
 
@@ -564,79 +549,13 @@ export const readCodebaseFile = () => {
 
 ```
 
-#### api/src/lib/chatCompletions/helpers.ts
-
-```ts file="api/src/lib/chatCompletions/helpers.ts"
-import { Repeater } from '@redwoodjs/realtime'
-
-import type { ChatCompletion } from 'src/lib/chatCompletions/types'
-import { logger } from 'src/lib/logger'
-
-const DEFAULT_DELAY_SECONDS = 200
-
-const streamCompletion = (
-  prompt = '',
-  messages: string[],
-  _delay: number = DEFAULT_DELAY_SECONDS
-) => {
-  return new Repeater<ChatCompletion>(async (push, stop) => {
-    for (const message of messages) {
-      logger.debug({ message, prompt }, 'debug mode message')
-      await push({ id: '1', threadId: '2', message, prompt })
-      logger.debug(`Delaying for ${DEFAULT_DELAY_SECONDS}ms`)
-      await new Promise((resolve) => setTimeout(resolve, DEFAULT_DELAY_SECONDS))
-      logger.debug('Delay complete')
-    }
-
-    logger.debug('All messages sent')
-    stop()
-  })
-}
-
-export const streamDebugChatCompletion = (prompt: string) => {
-  logger.debug({ prompt }, 'debug mode prompt')
-
-  return streamCompletion(prompt, [
-    'Hello ',
-    'world!',
-    '\n',
-    'This is ',
-    'a debug ',
-    'session',
-  ])
-}
-
-export const streamEmptyPromptCompletion = (prompt: string) => {
-  logger.warn('prompt is empty')
-  const messages = ['Did you ', 'mean to ask ', 'something?']
-  return streamCompletion(prompt, messages)
-}
-
-export const streamErrorCompletion = (prompt: string) => {
-  logger.error('error')
-  return streamCompletion(prompt, ['Oops ', 'somethiig went ', 'wrong!'])
-}
-
-```
-
-#### api/src/lib/chatCompletions/types.ts
-
-```ts file="api/src/lib/chatCompletions/types.ts"
-export type ChatCompletion = {
-  id: string
-  threadId: string
-  message: string
-  prompt: string
-}
-
-```
-
 #### api/src/lib/codebaseGenerator/codebaseGenerator.ts
 
 ```ts file="api/src/lib/codebaseGenerator/codebaseGenerator.ts"
 import * as fs from 'fs'
 
 import fg from 'fast-glob'
+import type { GenCodebaseInput } from 'types/shared-schema-types'
 
 import { getConfig, getPaths } from '@redwoodjs/project-config'
 
@@ -784,23 +703,19 @@ const addFilesToTOC = (sectionFiles: string[], toc: string[]) => {
   })
 }
 
-export interface GenCodebaseArgs {
-  upload?: boolean
-}
-
-export const generate = async (args: GenCodebaseArgs) => {
+export const generate = async (args?: GenCodebaseInput) => {
   logger.info(':: Generating codebase table of contents ::')
 
   const files = await getCodeFiles()
   const tocContent = createMarkdownTOC(files)
 
   fs.writeFileSync(CODEBASE_FILENAME, tocContent)
-  logger.info(
-    { tocContent, CODEBASE_FILENAME },
-    `:: Table of contents generated ::`
-  )
+  // logger.info(
+  //   { tocContent, CODEBASE_FILENAME },
+  //   `:: Table of contents generated ::`
+  // )
 
-  if (args.upload) {
+  if (args?.upload) {
     const { signedUrl } = await getSignedUploadUrl()
 
     if (signedUrl) {
@@ -828,6 +743,17 @@ export const LANGBASE_MEMORY_DOCUMENTS_ENDPOINT =
 export const LANGBASE_API_KEY = process.env.LANGBASE_API_KEY
 
 export const LANGBASE_CHAT_ENDPOINT = 'https://api.langbase.com/beta/chat'
+
+```
+
+#### api/src/lib/openAI/openAI.ts
+
+```ts file="api/src/lib/openAI/openAI.ts"
+import OpenAI from 'openai'
+
+export const openAIClient = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+})
 
 ```
 
@@ -919,6 +845,9 @@ export const schema = gql`
   type Mutation {
     generateCodebase(args: GenCodebaseInput): Boolean @skipAuth
   }
+  type Query {
+    codebase: String @skipAuth
+  }
 `
 
 ```
@@ -938,6 +867,45 @@ export const schema = gql`
     Maybe you want to @defer this field ;)
     """
     slowField(waitFor: Int! = 5000): String @skipAuth
+  }
+`
+
+```
+
+#### api/src/graphql/posts.sdl.ts
+
+```ts file="api/src/graphql/posts.sdl.ts"
+export const schema = gql`
+  type Post {
+    id: Int!
+    createdAt: DateTime!
+    updatedAt: DateTime!
+    title: String!
+    body: String
+    author: String!
+  }
+
+  type Query {
+    posts: [Post!]! @requireAuth
+    post(id: Int!): Post @requireAuth
+  }
+
+  input CreatePostInput {
+    title: String!
+    body: String
+    author: String!
+  }
+
+  input UpdatePostInput {
+    title: String
+    body: String
+    author: String
+  }
+
+  type Mutation {
+    createPost(input: CreatePostInput!): Post! @requireAuth
+    updatePost(id: Int!, input: UpdatePostInput!): Post! @requireAuth
+    deletePost(id: Int!): Post! @requireAuth
   }
 `
 
@@ -1056,6 +1024,9 @@ export const schema = gql`
   type Mutation {
     generateCodebase(args: GenCodebaseInput): Boolean @skipAuth
   }
+  type Query {
+    codebase: String @skipAuth
+  }
 `
 
 ```
@@ -1075,6 +1046,45 @@ export const schema = gql`
     Maybe you want to @defer this field ;)
     """
     slowField(waitFor: Int! = 5000): String @skipAuth
+  }
+`
+
+```
+
+#### api/src/graphql/posts.sdl.ts
+
+```ts file="api/src/graphql/posts.sdl.ts"
+export const schema = gql`
+  type Post {
+    id: Int!
+    createdAt: DateTime!
+    updatedAt: DateTime!
+    title: String!
+    body: String
+    author: String!
+  }
+
+  type Query {
+    posts: [Post!]! @requireAuth
+    post(id: Int!): Post @requireAuth
+  }
+
+  input CreatePostInput {
+    title: String!
+    body: String
+    author: String!
+  }
+
+  input UpdatePostInput {
+    title: String
+    body: String
+    author: String
+  }
+
+  type Mutation {
+    createPost(input: CreatePostInput!): Post! @requireAuth
+    updatePost(id: Int!, input: UpdatePostInput!): Post! @requireAuth
+    deletePost(id: Int!): Post! @requireAuth
   }
 `
 
@@ -1234,18 +1244,15 @@ export const Auction = {
 ```ts file="api/src/services/chatCompletions/chatCompletions.ts"
 import { Repeater } from '@redwoodjs/realtime'
 
-import { readCodebaseFile } from 'src/lib/chatCompletions/codeGenerator'
 import {
   streamEmptyPromptCompletion,
   streamDebugChatCompletion,
   streamErrorCompletion,
 } from 'src/lib/chatCompletions/helpers'
 import type { ChatCompletion } from 'src/lib/chatCompletions/types'
-import {
-  LANGBASE_API_KEY,
-  LANGBASE_CHAT_ENDPOINT,
-} from 'src/lib/langbase/langbase'
+import { readCodebaseFile } from 'src/lib/codebaseGenerator/codebase'
 import { logger } from 'src/lib/logger'
+import { openAIClient } from 'src/lib/openAI/openAI'
 
 export const createChatCompletion = async ({ input }) => {
   const { prompt, debug, _stream } = input
@@ -1260,69 +1267,61 @@ export const createChatCompletion = async ({ input }) => {
     return streamDebugChatCompletion(prompt)
   }
 
-  const data = {
-    messages: [{ role: 'user', content: prompt }],
-    variables: [{ name: 'CODEBASE', value: readCodebaseFile() }],
-  }
-
-  logger.debug(data, '>>> data')
-
-  const response = await fetch(LANGBASE_CHAT_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: LANGBASE_API_KEY,
-    },
-    body: JSON.stringify(data),
-  })
-
-  if (!response.ok) {
-    return streamErrorCompletion(prompt)
-  }
-
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder('utf-8')
-
   return new Repeater<ChatCompletion>(async (push, stop) => {
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) {
-        stop()
-        break
-      }
-      const chunk = decoder.decode(value)
-      const lines = chunk.split('\n').filter((line) => line.trim() !== '')
+    const publish = async () => {
+      try {
+        const stream = await openAIClient.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content:
+                "You're a helpful AI assistant that is an expert in web development and developer tools and technologies including Prisma, GraphQL, SQL, React, Javascript, Typescript and RedwoodJS. Be concise in your answers. Respond in markdown.",
+            },
+            {
+              role: 'user',
+              content: `Use the following RedwoodJS application codebase to answer questions:
 
-      for (const line of lines) {
-        if (line.startsWith('data:')) {
-          const data = line.substring('data:'.length).trim()
-          if (data === '[DONE]') {
-            stop()
-            break
-          }
-          try {
-            const json = JSON.parse(data)
-            if (json.choices[0]?.delta?.content) {
-              const content = json.choices[0].delta.content
-              const chatCompletion = {
-                id: '1',
-                threadId: '1',
-                message: content,
-                prompt,
-              }
-              console.debug(chatCompletion, 'Publish chat chunk')
-              push(chatCompletion)
+            ${readCodebaseFile()}`,
+            },
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+          stream: true as const,
+        })
+        logger.debug('OpenAI stream received started ...')
+
+        for await (const part of stream) {
+          const { content } = part.choices[0].delta
+
+          if (content) {
+            logger.debug({ content }, 'OpenAI stream received ...')
+
+            const chatCompletion = {
+              id: part.id,
+              threadId: part.id,
+              message: `${content}`,
+              prompt,
             }
-          } catch (error) {
-            logger.warn({ error, data }, 'Error parsing JSON chunk')
+            console.debug(chatCompletion, 'Publish chat chunk')
+            push(chatCompletion)
           }
         }
+
+        logger.debug('OpenAI stream received ended.')
+        stop()
+      } catch (error) {
+        logger.error('Error in OpenAI stream:', error)
+        return streamErrorCompletion(prompt)
       }
     }
 
-    stop.then(() => {
-      logger.debug('cancel')
+    publish()
+
+    await stop.then(() => {
+      logger.debug('stream done')
     })
   })
 }
@@ -1332,11 +1331,22 @@ export const createChatCompletion = async ({ input }) => {
 #### api/src/services/codebase/codebase.ts
 
 ```ts file="api/src/services/codebase/codebase.ts"
-import { generate } from 'src/lib/codebaseGenerator/codebaseGenerator'
-import type { GenCodebaseArgs } from 'src/lib/codebaseGenerator/codebaseGenerator'
+import type { GenerateCodebaseResolver, CodebaseResolver } from 'types/codebase'
+import type { GenCodebaseInput } from 'types/shared-schema-types'
 
-export const generateCodebase = async (args: GenCodebaseArgs) => {
+import { readCodebaseFile } from 'src/lib/codebaseGenerator/codebase'
+import { generate } from 'src/lib/codebaseGenerator/codebaseGenerator'
+
+export const generateCodebase: GenerateCodebaseResolver = async ({
+  args,
+}: {
+  args: GenCodebaseInput
+}) => {
   return await generate(args)
+}
+
+export const codebase: CodebaseResolver = async () => {
+  return await readCodebaseFile()
 }
 
 ```
@@ -1357,6 +1367,44 @@ export const slowField = async (_, { waitFor = 5000 }) => {
   logger.debug('waiting on slowField')
   await wait(waitFor)
   return 'I am slow'
+}
+
+```
+
+#### api/src/services/posts/posts.ts
+
+```ts file="api/src/services/posts/posts.ts"
+import type { QueryResolvers, MutationResolvers } from 'types/graphql'
+
+import { db } from 'src/lib/db'
+
+export const posts: QueryResolvers['posts'] = () => {
+  return db.post.findMany()
+}
+
+export const post: QueryResolvers['post'] = ({ id }) => {
+  return db.post.findUnique({
+    where: { id },
+  })
+}
+
+export const createPost: MutationResolvers['createPost'] = ({ input }) => {
+  return db.post.create({
+    data: input,
+  })
+}
+
+export const updatePost: MutationResolvers['updatePost'] = ({ id, input }) => {
+  return db.post.update({
+    data: input,
+    where: { id },
+  })
+}
+
+export const deletePost: MutationResolvers['deletePost'] = ({ id }) => {
+  return db.post.delete({
+    where: { id },
+  })
 }
 
 ```
@@ -1631,24 +1679,103 @@ export default newMessage
 // 'src/pages/HomePage/HomePage.js'         -> HomePage
 // 'src/pages/Admin/BooksPage/BooksPage.js' -> AdminBooksPage
 
-import { Router, Route } from '@redwoodjs/router'
+import { Router, Route, Set } from '@redwoodjs/router'
+
+import ScaffoldLayout from 'src/layouts/ScaffoldLayout'
+
+import RedwoodCopilotLayout from 'src/layouts/RedwoodCopilotLayout/RedwoodCopilotLayout'
 
 const Routes = () => {
   return (
     <Router>
-      <Route path="/redwood-copilot" page={RedwoodCopilotPage} name="redwoodCopilot" />
-      <Route path="/alphabet" page={AlphabetPage} name="alphabet" />
-      <Route path="/chat-rooms" page={ChatRoomsPage} name="chatRooms" />
-      <Route path="/chat/{id:ID}" page={ChatPage} name="chat" />
-      <Route path="/auctions" page={AuctionsPage} name="auctions" />
-      <Route path="/auction/{id:ID}" page={AuctionPage} name="auction" />
-      <Route path="/" page={HomePage} name="home" />
+      <Set wrap={ScaffoldLayout} title="Posts" titleTo="posts" buttonLabel="New Post" buttonTo="newPost">
+        <Route path="/posts/new" page={PostNewPostPage} name="newPost" />
+        <Route path="/posts/{id:Int}/edit" page={PostEditPostPage} name="editPost" />
+        <Route path="/posts/{id:Int}" page={PostPostPage} name="post" />
+        <Route path="/posts" page={PostPostsPage} name="posts" />
+      </Set>
+      <Set wrap={RedwoodCopilotLayout}>
+        <Route path="/redwood-copilot" page={RedwoodCopilotPage} name="redwoodCopilot" />
+        <Route path="/alphabet" page={AlphabetPage} name="alphabet" />
+        <Route path="/chat-rooms" page={ChatRoomsPage} name="chatRooms" />
+        <Route path="/chat/{id:ID}" page={ChatPage} name="chat" />
+        <Route path="/auctions" page={AuctionsPage} name="auctions" />
+        <Route path="/auction/{id:ID}" page={AuctionPage} name="auction" />
+        <Route path="/" page={HomePage} name="home" />
+      </Set>
       <Route notfound page={NotFoundPage} />
     </Router>
   )
 }
 
 export default Routes
+
+```
+
+### Layouts
+
+#### web/src/layouts/RedwoodCopilotLayout/RedwoodCopilotLayout.tsx
+
+```tsx file="web/src/layouts/RedwoodCopilotLayout/RedwoodCopilotLayout.tsx"
+import RedwoodCopilotDrawer from 'src/components/RedwoodCopilot/Drawer'
+
+type RedwoodCopilotLayoutProps = {
+  children?: React.ReactNode
+}
+
+const RedwoodCopilotLayout = ({ children }: RedwoodCopilotLayoutProps) => {
+  return (
+    <>
+      <RedwoodCopilotDrawer open={false} />
+      {children}
+    </>
+  )
+}
+
+export default RedwoodCopilotLayout
+
+```
+
+#### web/src/layouts/ScaffoldLayout/ScaffoldLayout.tsx
+
+```tsx file="web/src/layouts/ScaffoldLayout/ScaffoldLayout.tsx"
+import { Link, routes } from '@redwoodjs/router'
+import { Toaster } from '@redwoodjs/web/toast'
+
+type LayoutProps = {
+  title: string
+  titleTo: string
+  buttonLabel: string
+  buttonTo: string
+  children: React.ReactNode
+}
+
+const ScaffoldLayout = ({
+  title,
+  titleTo,
+  buttonLabel,
+  buttonTo,
+  children,
+}: LayoutProps) => {
+  return (
+    <div className="rw-scaffold">
+      <Toaster toastOptions={{ className: 'rw-toast', duration: 6000 }} />
+      <header className="rw-header">
+        <h1 className="rw-heading rw-heading-primary">
+          <Link to={routes[titleTo]()} className="rw-link">
+            {title}
+          </Link>
+        </h1>
+        <Link to={routes[buttonTo]()} className="rw-button rw-button-green">
+          <div className="rw-button-icon">+</div> {buttonLabel}
+        </Link>
+      </header>
+      <main className="rw-main">{children}</main>
+    </div>
+  )
+}
+
+export default ScaffoldLayout
 
 ```
 
@@ -1871,27 +1998,102 @@ export default DevFatalErrorPage ||
 #### web/src/pages/HomePage/HomePage.tsx
 
 ```tsx file="web/src/pages/HomePage/HomePage.tsx"
-import { Link, routes } from '@redwoodjs/router'
+import {
+  BoltIcon,
+  CodeBracketIcon,
+  SparklesIcon,
+} from '@heroicons/react/20/solid'
+
 import { Metadata } from '@redwoodjs/web'
+
+import CodebaseCell from 'src/components/CodebaseCell'
+
+const features = [
+  {
+    name: 'Codebase Generator',
+    description: 'First we generate a file with your entire RedwoodJS project.',
+    href: '#',
+    icon: CodeBracketIcon,
+  },
+  {
+    name: 'OpenAI',
+    description:
+      'We send that codebase to OpenAI and ask questions about it using our Redwood Copilot chatbot.',
+    href: '#',
+    icon: SparklesIcon,
+  },
+  {
+    name: 'GraphQL Streaming',
+    description:
+      'Redwood Realtime with GraphQL Streaming will stream the response from OpenAI to the client.',
+    href: '#',
+    icon: BoltIcon,
+  },
+]
+
+function Example() {
+  return (
+    <div className="bg-white py-24 sm:py-32">
+      <div className="mx-auto max-w-7xl px-6 lg:px-8">
+        <div className="mx-auto max-w-2xl lg:text-center">
+          <h2 className=" text-base font-semibold leading-7 text-green-600">
+            Chatbot
+          </h2>
+          <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+            Redwood Copilot Demo
+          </p>
+          <p className="mt-6 text-lg leading-8 text-gray-600">
+            with OpenAI and GraphQL Streaming
+          </p>
+          <p className="mt-6 text-lg leading-8 text-gray-600">
+            This project demonstrates how to use RedwoodJS, OpenAI and GraphQL
+            Streaming to build a Chatbot that can answer questions about your
+            code.
+          </p>
+        </div>
+        <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
+          <dl className="grid max-w-xl grid-cols-1 gap-x-8 gap-y-16 lg:max-w-none lg:grid-cols-3">
+            {features.map((feature) => (
+              <div key={feature.name} className="flex flex-col">
+                <dt className="flex items-center gap-x-3 text-base font-semibold leading-7 text-gray-900">
+                  <feature.icon
+                    aria-hidden="true"
+                    className="h-5 w-5 flex-none text-green-600"
+                  />
+                  {feature.name}
+                </dt>
+                <dd className="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-600">
+                  <p className="flex-auto">{feature.description}</p>
+                  <p className="mt-6">
+                    <a
+                      href={feature.href}
+                      className="text-sm font-semibold leading-6 text-green-600"
+                    >
+                      Learn more <span aria-hidden="true">→</span>
+                    </a>
+                  </p>
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const HomePage = () => {
   return (
     <>
-      <Metadata title="Realtime Demo" description="Realtime Demo" />
+      <Metadata
+        title="Redwood Copiliot Demo with OpenAI and GraphQL Streaming"
+        description="Redwood Copiliot Demo with OpenAI and GraphQL Streaming"
+      />
 
-      <h1 className="text-3xl">Realtime Demo</h1>
-      <p>
-        <Link to={routes.auctions()}>Auctions</Link>
-      </p>
-      <p>
-        <Link to={routes.chatRooms()}>Chat Rooms</Link>
-      </p>
-      <p>
-        <Link to={routes.alphabet()}>Alphabet</Link>
-      </p>
-      <p>
-        <Link to={routes.redwoodCopilot()}>Redwood Copilot</Link>
-      </p>
+      <Example />
+      <div className="mx-auto rounded-md border border-green-300 bg-green-100 p-4 lg:w-2/3">
+        <CodebaseCell />
+      </div>
     </>
   )
 }
@@ -1953,112 +2155,69 @@ export default () => (
 #### web/src/pages/RedwoodCopilotPage/RedwoodCopilotPage.tsx
 
 ```tsx file="web/src/pages/RedwoodCopilotPage/RedwoodCopilotPage.tsx"
-import { useState, useEffect, useRef } from 'react'
-
-import ReactMarkdown from 'react-markdown'
-
-import { StreamProvider, g, useQuery } from 'src/StreamProvider'
-
-const ChatCompletionQuery = g(`
-  query ChatCompletionQuery($input: CreateChatCompletionInput!) {
-    createChatCompletion(input: $input) @stream {
-      id
-      message
-      threadId
-    }
-  }`)
-
-const RedwoodCopilot = () => {
-  const [prompt, setPrompt] = useState('')
-  const [{ data, fetching, error }, executeQuery] = useQuery({
-    query: ChatCompletionQuery,
-    variables: { input: { prompt, debug: true, stream: true } },
-    pause: true,
-  })
-  const [message, setMessage] = useState('')
-  const lastMessageLengthRef = useRef(0)
-
-  useEffect(() => {
-    if (data?.createChatCompletion) {
-      setMessage((prevMessage) => {
-        const fullNewMessage = data.createChatCompletion
-          .map((item) => item.message)
-          .join('')
-        const newContent = fullNewMessage.slice(lastMessageLengthRef.current)
-        lastMessageLengthRef.current = fullNewMessage.length
-        return [prevMessage, newContent].join('')
-      })
-    }
-  }, [data])
-
-  const handleSend = () => {
-    const promptValue = (
-      document.querySelector('input[name="prompt"]') as HTMLInputElement
-    ).value
-    setMessage('')
-    setPrompt(promptValue)
-    executeQuery()
-  }
-
-  return (
-    <main className="container mx-auto flex h-screen flex-col lg:w-1/2">
-      <h1 className="py-4 text-4xl font-bold">Redwoodie</h1>
-
-      <div className="flex-grow overflow-auto px-4">
-        <div className="space-y-2">
-          {fetching && (
-            <div className="space-y-2">
-              <div className="animate-pulse text-center text-xl font-bold text-purple-600">
-                AI is thinking ...
-              </div>
-              <div className="text-md rounded-md border border-solid border-gray-300 bg-blue-200 p-4 text-gray-600">
-                {prompt}
-              </div>
-            </div>
-          )}
-          {error && <div>Error: {error.message}</div>}
-          {message && (
-            <div className="space-y-2">
-              <div className="text-md rounded-md border border-solid border-gray-300 bg-blue-200 p-4 text-gray-600">
-                {prompt}
-              </div>
-              <div className="text-md rounded-md border border-solid border-gray-300 bg-gray-100 p-4 text-gray-600">
-                <ReactMarkdown>{message}</ReactMarkdown>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="sticky bottom-0 w-full bg-white p-4">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            name="prompt"
-            placeholder="Ask me anything about your RedwoodJS project"
-            required
-            className="flex-grow rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button
-            onClick={() => handleSend()}
-            className="rounded-md bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            Send
-          </button>
-        </div>
-      </div>
-    </main>
-  )
+export default function RedwoodCopilotPage() {
+  return <>My page</>
 }
 
-// add urql provider
-const RedwoodCopilotPage = () => (
-  <StreamProvider>
-    <RedwoodCopilot />
-  </StreamProvider>
-)
+```
 
-export default RedwoodCopilotPage
+#### web/src/pages/Post/EditPostPage/EditPostPage.tsx
+
+```tsx file="web/src/pages/Post/EditPostPage/EditPostPage.tsx"
+import EditPostCell from 'src/components/Post/EditPostCell'
+
+type PostPageProps = {
+  id: number
+}
+
+const EditPostPage = ({ id }: PostPageProps) => {
+  return <EditPostCell id={id} />
+}
+
+export default EditPostPage
+
+```
+
+#### web/src/pages/Post/NewPostPage/NewPostPage.tsx
+
+```tsx file="web/src/pages/Post/NewPostPage/NewPostPage.tsx"
+import NewPost from 'src/components/Post/NewPost'
+
+const NewPostPage = () => {
+  return <NewPost />
+}
+
+export default NewPostPage
+
+```
+
+#### web/src/pages/Post/PostPage/PostPage.tsx
+
+```tsx file="web/src/pages/Post/PostPage/PostPage.tsx"
+import PostCell from 'src/components/Post/PostCell'
+
+type PostPageProps = {
+  id: number
+}
+
+const PostPage = ({ id }: PostPageProps) => {
+  return <PostCell id={id} />
+}
+
+export default PostPage
+
+```
+
+#### web/src/pages/Post/PostsPage/PostsPage.tsx
+
+```tsx file="web/src/pages/Post/PostsPage/PostsPage.tsx"
+import PostsCell from 'src/components/Post/PostsCell'
+
+const PostsPage = () => {
+  return <PostsCell />
+}
+
+export default PostsPage
 
 ```
 
@@ -2277,6 +2436,76 @@ export default ChatRoom
 
 ```
 
+#### web/src/components/CodebaseCell/CodebaseCell.tsx
+
+```tsx file="web/src/components/CodebaseCell/CodebaseCell.tsx"
+import type {
+  FindCodebaseQuery,
+  FindCodebaseQueryVariables,
+} from 'types/graphql'
+
+import type {
+  CellSuccessProps,
+  CellFailureProps,
+  TypedDocumentNode,
+} from '@redwoodjs/web'
+
+import Markdown from 'src/components/Markdown/Markdown'
+
+export const QUERY: TypedDocumentNode<
+  FindCodebaseQuery,
+  FindCodebaseQueryVariables
+> = gql`
+  query FindCodebaseQuery {
+    codebase
+  }
+`
+
+export const Loading = () => <div>Loading...</div>
+
+export const Empty = () => <div>Empty</div>
+
+export const Failure = ({
+  error,
+}: CellFailureProps<FindCodebaseQueryVariables>) => (
+  <div style={{ color: 'red' }}>Error: {error?.message}</div>
+)
+
+export const Success = ({
+  codebase,
+}: CellSuccessProps<FindCodebaseQuery, FindCodebaseQueryVariables>) => {
+  return <Markdown>{codebase}</Markdown>
+}
+
+```
+
+#### web/src/components/Markdown/Markdown.tsx
+
+```tsx file="web/src/components/Markdown/Markdown.tsx"
+import ReactMarkdown from 'react-markdown'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+
+const CodeBlock = ({ className, children }) => {
+  const match = /language-(\w+)/.exec(className || '')
+  return match ? (
+    <SyntaxHighlighter language={match[1]} PreTag="div">
+      {String(children)}
+    </SyntaxHighlighter>
+  ) : (
+    <code className={`${className} whitespace-pre-wrap`}>{children}</code>
+  )
+}
+
+const Markdown = ({ children }) => {
+  return (
+    <ReactMarkdown components={{ code: CodeBlock }}>{children}</ReactMarkdown>
+  )
+}
+
+export default Markdown
+
+```
+
 #### web/src/components/MessageList/MessageList.tsx
 
 ```tsx file="web/src/components/MessageList/MessageList.tsx"
@@ -2299,6 +2528,258 @@ const MessageList = ({ messages }: { messages: Message[] }) => {
 }
 
 export default MessageList
+
+```
+
+#### web/src/components/RedwoodCopilot/Drawer.tsx
+
+```tsx file="web/src/components/RedwoodCopilot/Drawer.tsx"
+import { useState } from 'react'
+
+import { Dialog, DialogPanel, DialogTitle } from '@headlessui/react'
+import { XMarkIcon } from '@heroicons/react/24/outline'
+
+import avatar from './avatars/rw-copilot-avatar.png'
+import RedwoodCopilot from './RedwoodCopilot'
+
+type props = {
+  open: boolean
+}
+
+const RedwoodCopilotDrawer = (props?: props) => {
+  const [open, setOpen] = useState(props?.open || false)
+
+  if (!open)
+    return (
+      <div className="fixed bottom-8 right-8 z-50">
+        <button
+          onClick={() => setOpen(true)}
+          className="overflow-hidden rounded-full bg-green-200 p-1 shadow-lg transition-shadow duration-300 hover:scale-105  hover:shadow-xl hover:ring-2 hover:ring-green-300"
+        >
+          <img src={avatar} alt="Redwood Copilot" className="h-16 w-16 p-2" />
+        </button>
+      </div>
+    )
+
+  return (
+    <Dialog open={open} onClose={setOpen} className="relative z-10">
+      <div className="fixed inset-0" />
+
+      <div className="fixed inset-0 overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="pointer-events-none fixed inset-y-0 right-0 flex max-w-full pl-10">
+            <DialogPanel
+              transition
+              className="pointer-events-auto w-screen max-w-[50vw] transform transition duration-1000 ease-in-out data-[closed]:translate-x-full sm:duration-700"
+            >
+              <div className="flex h-full flex-col overflow-y-scroll bg-white py-6 shadow-xl">
+                <div className="px-4 sm:px-6">
+                  <div className="flex items-start justify-between">
+                    <DialogTitle className="flex items-center text-base font-semibold leading-6 text-gray-900">
+                      <img
+                        src={avatar}
+                        alt="Redwood Copilot"
+                        aria-hidden="true"
+                        className="mr-2 h-10 w-10 rounded-full bg-green-100 p-1 ring-2 ring-green-300"
+                      />
+                      <span className="text-green-600">Redwood Copilot</span>
+                    </DialogTitle>
+                    <div className="ml-3 flex h-7 items-center">
+                      <button
+                        type="button"
+                        onClick={() => setOpen(false)}
+                        className="relative rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                      >
+                        <span className="absolute -inset-2.5" />
+                        <span className="sr-only">Close panel</span>
+                        <XMarkIcon aria-hidden="true" className="h-6 w-6" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="relative mt-6 flex-1 px-4 sm:px-6">
+                  <RedwoodCopilot />
+                </div>
+              </div>
+            </DialogPanel>
+          </div>
+        </div>
+      </div>
+    </Dialog>
+  )
+}
+export default RedwoodCopilotDrawer
+
+```
+
+#### web/src/components/RedwoodCopilot/RedwoodCopilot.tsx
+
+```tsx file="web/src/components/RedwoodCopilot/RedwoodCopilot.tsx"
+import { useState } from 'react'
+
+import Markdown from 'src/components/Markdown/Markdown'
+import { StreamProvider, g, useQuery } from 'src/StreamProvider'
+
+import avatar from './avatars/rw-copilot-avatar.png'
+import avatarThinking from './avatars/rw-copilot-thinking.png'
+import redwoodDeveloperIcon from './avatars/rw-developer.png'
+
+const ChatCompletionQuery = g(`
+  query ChatCompletionQuery($input: CreateChatCompletionInput!) {
+    createChatCompletion(input: $input) @stream {
+      id
+      message
+      threadId
+      prompt
+    }
+  }`)
+
+const debug = false
+const stream = true
+
+const thinkingStatements = [
+  'Photosynthesizing ideas...',
+  'Growing neural branches...',
+  'Calculating trunk circumference...',
+  'Analyzing Redwood DNA...',
+  'Consulting with wise old trees...',
+  'Uploading forest knowledge...',
+  'Debugging squirrel queries...',
+  'Optimizing pinecone algorithms...',
+  'Branching out for solutions...',
+  'Rooting through data forests...',
+]
+
+const getRandomThinkingStatement = () => {
+  return thinkingStatements[
+    Math.floor(Math.random() * thinkingStatements.length)
+  ]
+}
+const RedwoodCopilotComponent = () => {
+  const [prompt, setPrompt] = useState('')
+  const [thinkingStatement, setThinkingStatement] = useState('')
+
+  const [{ data, fetching, error }, executeQuery] = useQuery({
+    query: ChatCompletionQuery,
+    variables: { input: { prompt, debug, stream } },
+    pause: true,
+  })
+
+  const handleSend = () => {
+    const promptValue = prompt.trim()
+    if (promptValue) {
+      setThinkingStatement(getRandomThinkingStatement())
+      executeQuery()
+    }
+  }
+
+  return (
+    <main className="container mx-auto flex h-screen w-full flex-col">
+      <div className="flex-grow overflow-auto px-4 ">
+        <div className="space-y-2">
+          {fetching ||
+            (data && data.createChatCompletion.length === 0 && (
+              <div className="group block flex-shrink-0">
+                <div className="flex animate-pulse items-center">
+                  <div>
+                    <img
+                      src={avatarThinking}
+                      alt="Redwood Copilot is thinking"
+                      className="h-24"
+                    />
+                  </div>
+                  <div className="ml-3 text-green-600">{thinkingStatement}</div>
+                </div>
+              </div>
+            ))}
+          {error && <div>Error: {error.message}</div>}
+          {data && data.createChatCompletion.length > 0 && (
+            <div className="space-y-4">
+              <div className="text-md rounded-md border border-solid border-gray-300 bg-gray-200 p-4 text-gray-900">
+                <div className="mb-4 flex justify-center">
+                  <img
+                    src={redwoodDeveloperIcon}
+                    alt="Redwood Developer"
+                    aria-hidden="true"
+                    className="h-10 w-10 rounded-full bg-green-100 p-1 ring-2 ring-gray-500"
+                  />
+                </div>
+                <div className="text-md rounded-md border border-solid border-gray-300 bg-gray-100 p-4 text-gray-900">
+                  {data.createChatCompletion[0].prompt}
+                </div>
+              </div>
+              <div className="text-md rounded-md border border-solid border-green-300 bg-green-200 p-4 text-gray-900">
+                <div className="mb-4 flex justify-center">
+                  <img
+                    src={avatar}
+                    alt="Redwood Copilot"
+                    aria-hidden="true"
+                    className="h-10 w-10 rounded-full bg-green-100 p-1 ring-2 ring-green-400"
+                  />
+                </div>
+                <div className="text-md rounded-md border border-solid border-green-300 bg-green-100 p-4 text-gray-900">
+                  <Markdown>
+                    {data.createChatCompletion
+                      .map((completion) => completion.message)
+                      .join('')}
+                  </Markdown>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="sticky bottom-0 mb-0 w-full bg-white px-4 pt-8">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            name="prompt"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                handleSend()
+              }
+            }}
+            placeholder="Ask me anything about your RedwoodJS project"
+            required
+            disabled={fetching}
+            className="flex-grow rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+
+          <button
+            type="button"
+            className="inline-flex items-center gap-x-1.5 rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600"
+            onClick={handleSend}
+            disabled={!prompt.trim() || fetching}
+          >
+            <img
+              src={avatar}
+              alt="Redwood Copilot"
+              aria-hidden="true"
+              className=" -ml-0.5 h-10 w-10 rounded-full bg-green-200 p-1 ring-2 ring-green-300"
+            />
+            Ask!
+          </button>
+        </div>
+        <div className="mt-2 text-center text-sm text-gray-500">
+          Redwood Copilot might make mistakes. I am just a tree.
+        </div>
+      </div>
+    </main>
+  )
+}
+
+// add urql provider
+const RedwoodCopilot = () => (
+  <StreamProvider>
+    <RedwoodCopilotComponent />
+  </StreamProvider>
+)
+
+export default RedwoodCopilot
 
 ```
 
@@ -2354,6 +2835,571 @@ export const Success = ({ rooms }: CellSuccessProps<RoomsQuery>) => {
 
 ```
 
+#### web/src/components/Post/EditPostCell/EditPostCell.tsx
+
+```tsx file="web/src/components/Post/EditPostCell/EditPostCell.tsx"
+import type {
+  EditPostById,
+  UpdatePostInput,
+  UpdatePostMutationVariables,
+} from 'types/graphql'
+
+import { navigate, routes } from '@redwoodjs/router'
+import type {
+  CellSuccessProps,
+  CellFailureProps,
+  TypedDocumentNode,
+} from '@redwoodjs/web'
+import { useMutation } from '@redwoodjs/web'
+import { toast } from '@redwoodjs/web/toast'
+
+import PostForm from 'src/components/Post/PostForm'
+
+export const QUERY: TypedDocumentNode<EditPostById> = gql`
+  query EditPostById($id: Int!) {
+    post: post(id: $id) {
+      id
+      createdAt
+      updatedAt
+      title
+      body
+      author
+    }
+  }
+`
+
+const UPDATE_POST_MUTATION: TypedDocumentNode<
+  EditPostById,
+  UpdatePostMutationVariables
+> = gql`
+  mutation UpdatePostMutation($id: Int!, $input: UpdatePostInput!) {
+    updatePost(id: $id, input: $input) {
+      id
+      createdAt
+      updatedAt
+      title
+      body
+      author
+    }
+  }
+`
+
+export const Loading = () => <div>Loading...</div>
+
+export const Failure = ({ error }: CellFailureProps) => (
+  <div className="rw-cell-error">{error?.message}</div>
+)
+
+export const Success = ({ post }: CellSuccessProps<EditPostById>) => {
+  const [updatePost, { loading, error }] = useMutation(UPDATE_POST_MUTATION, {
+    onCompleted: () => {
+      toast.success('Post updated')
+      navigate(routes.posts())
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    },
+  })
+
+  const onSave = (input: UpdatePostInput, id: EditPostById['post']['id']) => {
+    updatePost({ variables: { id, input } })
+  }
+
+  return (
+    <div className="rw-segment">
+      <header className="rw-segment-header">
+        <h2 className="rw-heading rw-heading-secondary">
+          Edit Post {post?.id}
+        </h2>
+      </header>
+      <div className="rw-segment-main">
+        <PostForm post={post} onSave={onSave} error={error} loading={loading} />
+      </div>
+    </div>
+  )
+}
+
+```
+
+#### web/src/components/Post/NewPost/NewPost.tsx
+
+```tsx file="web/src/components/Post/NewPost/NewPost.tsx"
+import type {
+  CreatePostMutation,
+  CreatePostInput,
+  CreatePostMutationVariables,
+} from 'types/graphql'
+
+import { navigate, routes } from '@redwoodjs/router'
+import { useMutation } from '@redwoodjs/web'
+import type { TypedDocumentNode } from '@redwoodjs/web'
+import { toast } from '@redwoodjs/web/toast'
+
+import PostForm from 'src/components/Post/PostForm'
+
+const CREATE_POST_MUTATION: TypedDocumentNode<
+  CreatePostMutation,
+  CreatePostMutationVariables
+> = gql`
+  mutation CreatePostMutation($input: CreatePostInput!) {
+    createPost(input: $input) {
+      id
+    }
+  }
+`
+
+const NewPost = () => {
+  const [createPost, { loading, error }] = useMutation(CREATE_POST_MUTATION, {
+    onCompleted: () => {
+      toast.success('Post created')
+      navigate(routes.posts())
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    },
+  })
+
+  const onSave = (input: CreatePostInput) => {
+    createPost({ variables: { input } })
+  }
+
+  return (
+    <div className="rw-segment">
+      <header className="rw-segment-header">
+        <h2 className="rw-heading rw-heading-secondary">New Post</h2>
+      </header>
+      <div className="rw-segment-main">
+        <PostForm onSave={onSave} loading={loading} error={error} />
+      </div>
+    </div>
+  )
+}
+
+export default NewPost
+
+```
+
+#### web/src/components/Post/Post/Post.tsx
+
+```tsx file="web/src/components/Post/Post/Post.tsx"
+import type {
+  DeletePostMutation,
+  DeletePostMutationVariables,
+  FindPostById,
+} from 'types/graphql'
+
+import { Link, routes, navigate } from '@redwoodjs/router'
+import { useMutation } from '@redwoodjs/web'
+import type { TypedDocumentNode } from '@redwoodjs/web'
+import { toast } from '@redwoodjs/web/toast'
+
+import { timeTag } from 'src/lib/formatters'
+
+const DELETE_POST_MUTATION: TypedDocumentNode<
+  DeletePostMutation,
+  DeletePostMutationVariables
+> = gql`
+  mutation DeletePostMutation($id: Int!) {
+    deletePost(id: $id) {
+      id
+    }
+  }
+`
+
+interface Props {
+  post: NonNullable<FindPostById['post']>
+}
+
+const Post = ({ post }: Props) => {
+  const [deletePost] = useMutation(DELETE_POST_MUTATION, {
+    onCompleted: () => {
+      toast.success('Post deleted')
+      navigate(routes.posts())
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    },
+  })
+
+  const onDeleteClick = (id: DeletePostMutationVariables['id']) => {
+    if (confirm('Are you sure you want to delete post ' + id + '?')) {
+      deletePost({ variables: { id } })
+    }
+  }
+
+  return (
+    <>
+      <div className="rw-segment">
+        <header className="rw-segment-header">
+          <h2 className="rw-heading rw-heading-secondary">
+            Post {post.id} Detail
+          </h2>
+        </header>
+        <table className="rw-table">
+          <tbody>
+            <tr>
+              <th>Id</th>
+              <td>{post.id}</td>
+            </tr>
+            <tr>
+              <th>Created at</th>
+              <td>{timeTag(post.createdAt)}</td>
+            </tr>
+            <tr>
+              <th>Updated at</th>
+              <td>{timeTag(post.updatedAt)}</td>
+            </tr>
+            <tr>
+              <th>Title</th>
+              <td>{post.title}</td>
+            </tr>
+            <tr>
+              <th>Body</th>
+              <td>{post.body}</td>
+            </tr>
+            <tr>
+              <th>Author</th>
+              <td>{post.author}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <nav className="rw-button-group">
+        <Link
+          to={routes.editPost({ id: post.id })}
+          className="rw-button rw-button-blue"
+        >
+          Edit
+        </Link>
+        <button
+          type="button"
+          className="rw-button rw-button-red"
+          onClick={() => onDeleteClick(post.id)}
+        >
+          Delete
+        </button>
+      </nav>
+    </>
+  )
+}
+
+export default Post
+
+```
+
+#### web/src/components/Post/PostCell/PostCell.tsx
+
+```tsx file="web/src/components/Post/PostCell/PostCell.tsx"
+import type { FindPostById, FindPostByIdVariables } from 'types/graphql'
+
+import type {
+  CellSuccessProps,
+  CellFailureProps,
+  TypedDocumentNode,
+} from '@redwoodjs/web'
+
+import Post from 'src/components/Post/Post'
+
+export const QUERY: TypedDocumentNode<
+  FindPostById,
+  FindPostByIdVariables
+> = gql`
+  query FindPostById($id: Int!) {
+    post: post(id: $id) {
+      id
+      createdAt
+      updatedAt
+      title
+      body
+      author
+    }
+  }
+`
+
+export const Loading = () => <div>Loading...</div>
+
+export const Empty = () => <div>Post not found</div>
+
+export const Failure = ({ error }: CellFailureProps<FindPostByIdVariables>) => (
+  <div className="rw-cell-error">{error?.message}</div>
+)
+
+export const Success = ({
+  post,
+}: CellSuccessProps<FindPostById, FindPostByIdVariables>) => {
+  return <Post post={post} />
+}
+
+```
+
+#### web/src/components/Post/PostForm/PostForm.tsx
+
+```tsx file="web/src/components/Post/PostForm/PostForm.tsx"
+import type { EditPostById, UpdatePostInput } from 'types/graphql'
+
+import type { RWGqlError } from '@redwoodjs/forms'
+import {
+  Form,
+  FormError,
+  FieldError,
+  Label,
+  TextField,
+  Submit,
+} from '@redwoodjs/forms'
+
+type FormPost = NonNullable<EditPostById['post']>
+
+interface PostFormProps {
+  post?: EditPostById['post']
+  onSave: (data: UpdatePostInput, id?: FormPost['id']) => void
+  error: RWGqlError
+  loading: boolean
+}
+
+const PostForm = (props: PostFormProps) => {
+  const onSubmit = (data: FormPost) => {
+    props.onSave(data, props?.post?.id)
+  }
+
+  return (
+    <div className="rw-form-wrapper">
+      <Form<FormPost> onSubmit={onSubmit} error={props.error}>
+        <FormError
+          error={props.error}
+          wrapperClassName="rw-form-error-wrapper"
+          titleClassName="rw-form-error-title"
+          listClassName="rw-form-error-list"
+        />
+
+        <Label
+          name="title"
+          className="rw-label"
+          errorClassName="rw-label rw-label-error"
+        >
+          Title
+        </Label>
+
+        <TextField
+          name="title"
+          defaultValue={props.post?.title}
+          className="rw-input"
+          errorClassName="rw-input rw-input-error"
+          validation={{ required: true }}
+        />
+
+        <FieldError name="title" className="rw-field-error" />
+
+        <Label
+          name="body"
+          className="rw-label"
+          errorClassName="rw-label rw-label-error"
+        >
+          Body
+        </Label>
+
+        <TextField
+          name="body"
+          defaultValue={props.post?.body}
+          className="rw-input"
+          errorClassName="rw-input rw-input-error"
+        />
+
+        <FieldError name="body" className="rw-field-error" />
+
+        <Label
+          name="author"
+          className="rw-label"
+          errorClassName="rw-label rw-label-error"
+        >
+          Author
+        </Label>
+
+        <TextField
+          name="author"
+          defaultValue={props.post?.author}
+          className="rw-input"
+          errorClassName="rw-input rw-input-error"
+          validation={{ required: true }}
+        />
+
+        <FieldError name="author" className="rw-field-error" />
+
+        <div className="rw-button-group">
+          <Submit disabled={props.loading} className="rw-button rw-button-blue">
+            Save
+          </Submit>
+        </div>
+      </Form>
+    </div>
+  )
+}
+
+export default PostForm
+
+```
+
+#### web/src/components/Post/Posts/Posts.tsx
+
+```tsx file="web/src/components/Post/Posts/Posts.tsx"
+import type {
+  DeletePostMutation,
+  DeletePostMutationVariables,
+  FindPosts,
+} from 'types/graphql'
+
+import { Link, routes } from '@redwoodjs/router'
+import { useMutation } from '@redwoodjs/web'
+import type { TypedDocumentNode } from '@redwoodjs/web'
+import { toast } from '@redwoodjs/web/toast'
+
+import { QUERY } from 'src/components/Post/PostsCell'
+import { timeTag, truncate } from 'src/lib/formatters'
+
+const DELETE_POST_MUTATION: TypedDocumentNode<
+  DeletePostMutation,
+  DeletePostMutationVariables
+> = gql`
+  mutation DeletePostMutation($id: Int!) {
+    deletePost(id: $id) {
+      id
+    }
+  }
+`
+
+const PostsList = ({ posts }: FindPosts) => {
+  const [deletePost] = useMutation(DELETE_POST_MUTATION, {
+    onCompleted: () => {
+      toast.success('Post deleted')
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    },
+    // This refetches the query on the list page. Read more about other ways to
+    // update the cache over here:
+    // https://www.apollographql.com/docs/react/data/mutations/#making-all-other-cache-updates
+    refetchQueries: [{ query: QUERY }],
+    awaitRefetchQueries: true,
+  })
+
+  const onDeleteClick = (id: DeletePostMutationVariables['id']) => {
+    if (confirm('Are you sure you want to delete post ' + id + '?')) {
+      deletePost({ variables: { id } })
+    }
+  }
+
+  return (
+    <div className="rw-segment rw-table-wrapper-responsive">
+      <table className="rw-table">
+        <thead>
+          <tr>
+            <th>Id</th>
+            <th>Created at</th>
+            <th>Updated at</th>
+            <th>Title</th>
+            <th>Body</th>
+            <th>Author</th>
+            <th>&nbsp;</th>
+          </tr>
+        </thead>
+        <tbody>
+          {posts.map((post) => (
+            <tr key={post.id}>
+              <td>{truncate(post.id)}</td>
+              <td>{timeTag(post.createdAt)}</td>
+              <td>{timeTag(post.updatedAt)}</td>
+              <td>{truncate(post.title)}</td>
+              <td>{truncate(post.body)}</td>
+              <td>{truncate(post.author)}</td>
+              <td>
+                <nav className="rw-table-actions">
+                  <Link
+                    to={routes.post({ id: post.id })}
+                    title={'Show post ' + post.id + ' detail'}
+                    className="rw-button rw-button-small"
+                  >
+                    Show
+                  </Link>
+                  <Link
+                    to={routes.editPost({ id: post.id })}
+                    title={'Edit post ' + post.id}
+                    className="rw-button rw-button-small rw-button-blue"
+                  >
+                    Edit
+                  </Link>
+                  <button
+                    type="button"
+                    title={'Delete post ' + post.id}
+                    className="rw-button rw-button-small rw-button-red"
+                    onClick={() => onDeleteClick(post.id)}
+                  >
+                    Delete
+                  </button>
+                </nav>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+export default PostsList
+
+```
+
+#### web/src/components/Post/PostsCell/PostsCell.tsx
+
+```tsx file="web/src/components/Post/PostsCell/PostsCell.tsx"
+import type { FindPosts, FindPostsVariables } from 'types/graphql'
+
+import { Link, routes } from '@redwoodjs/router'
+import type {
+  CellSuccessProps,
+  CellFailureProps,
+  TypedDocumentNode,
+} from '@redwoodjs/web'
+
+import Posts from 'src/components/Post/Posts'
+
+export const QUERY: TypedDocumentNode<FindPosts, FindPostsVariables> = gql`
+  query FindPosts {
+    posts {
+      id
+      createdAt
+      updatedAt
+      title
+      body
+      author
+    }
+  }
+`
+
+export const Loading = () => <div>Loading...</div>
+
+export const Empty = () => {
+  return (
+    <div className="rw-text-center">
+      {'No posts yet. '}
+      <Link to={routes.newPost()} className="rw-link">
+        {'Create one?'}
+      </Link>
+    </div>
+  )
+}
+
+export const Failure = ({ error }: CellFailureProps<FindPosts>) => (
+  <div className="rw-cell-error">{error?.message}</div>
+)
+
+export const Success = ({
+  posts,
+}: CellSuccessProps<FindPosts, FindPostsVariables>) => {
+  return <Posts posts={posts} />
+}
+
+```
+
 ### App
 
 #### web/src/App.tsx
@@ -2365,6 +3411,7 @@ import { RedwoodApolloProvider } from '@redwoodjs/web/apollo'
 import FatalErrorPage from 'src/pages/FatalErrorPage'
 import Routes from 'src/Routes'
 
+import './scaffold.css'
 import './index.css'
 
 const App = () => (

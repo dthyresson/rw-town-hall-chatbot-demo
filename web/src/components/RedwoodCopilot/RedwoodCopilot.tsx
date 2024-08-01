@@ -1,8 +1,6 @@
 import { useState } from 'react'
 
-import ReactMarkdown from 'react-markdown'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-
+import Markdown from 'src/components/Markdown/Markdown'
 import { StreamProvider, g, useQuery } from 'src/StreamProvider'
 
 import avatar from './avatars/rw-copilot-avatar.png'
@@ -18,17 +16,6 @@ const ChatCompletionQuery = g(`
       prompt
     }
   }`)
-
-const CodeBlock = ({ className, children }) => {
-  const match = /language-(\w+)/.exec(className || '')
-  return match ? (
-    <SyntaxHighlighter language={match[1]} PreTag="div">
-      {String(children)}
-    </SyntaxHighlighter>
-  ) : (
-    <code className={`${className} whitespace-pre-wrap`}>{children}</code>
-  )
-}
 
 const debug = false
 const stream = true
@@ -114,11 +101,11 @@ const RedwoodCopilotComponent = () => {
                   />
                 </div>
                 <div className="text-md rounded-md border border-solid border-green-300 bg-green-100 p-4 text-gray-900">
-                  <ReactMarkdown components={{ code: CodeBlock }}>
+                  <Markdown>
                     {data.createChatCompletion
                       .map((completion) => completion.message)
                       .join('')}
-                  </ReactMarkdown>
+                  </Markdown>
                 </div>
               </div>
             </div>
