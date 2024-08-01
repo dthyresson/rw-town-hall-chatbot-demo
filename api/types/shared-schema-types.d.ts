@@ -79,6 +79,7 @@ export interface Query {
   codebase?: string | null
   createChatCompletion: ChatCompletion[]
   fastField: string
+  loadFile?: string | null
   post?: Post | null
   posts: Post[]
   redwood?: Redwood | null

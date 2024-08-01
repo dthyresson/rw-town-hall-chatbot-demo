@@ -38,6 +38,67 @@ const getRandomThinkingStatement = () => {
     Math.floor(Math.random() * thinkingStatements.length)
   ]
 }
+
+const examplePrompts = [
+  {
+    title: 'Summary',
+    prompt: 'Summarize the contents of my RedwoodJS app using the README.',
+  },
+  {
+    title: 'Cells',
+    prompt: 'List the cells in my RedwoodJS app.',
+  },
+  {
+    title: 'Routes',
+    prompt: 'List the routes in my RedwoodJS app.',
+  },
+]
+
+const ExamplePromptCards = ({ setPrompt }) => {
+  return (
+    <ul className="grid grid-cols-1 gap-6 py-4 text-green-900 sm:grid-cols-2 lg:grid-cols-3 dark:text-green-200">
+      {examplePrompts.map((prompt) => (
+        <li
+          key={prompt.title}
+          className="group col-span-1 rounded-lg bg-green-100 shadow transition-colors duration-300"
+        >
+          <button
+            className="flex w-full cursor-pointer flex-col items-center justify-center space-y-3 p-6 text-center"
+            onClick={() => {
+              setPrompt(prompt.prompt)
+            }}
+          >
+            <div className="rounded-lg">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-6 w-6"
+                strokeWidth="2"
+                stroke="currentColor"
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                <path d="M14 6l7 7l-4 4"></path>
+                <path d="M5.828 18.172a2.828 2.828 0 0 0 4 0l10.586 -10.586a2 2 0 0 0 0 -2.829l-1.171 -1.171a2 2 0 0 0 -2.829 0l-10.586 10.586a2.828 2.828 0 0 0 0 4z"></path>
+                <path d="M4 20l1.768 -1.768"></path>
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-green-800 transition-colors duration-300">
+                {prompt.title}
+              </h3>
+              <p className="mt-1 text-sm text-green-700 transition-colors duration-300">
+                {prompt.prompt}
+              </p>
+            </div>
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 const RedwoodCopilotComponent = () => {
   const [prompt, setPrompt] = useState('')
   const [thinkingStatement, setThinkingStatement] = useState('')
@@ -58,7 +119,9 @@ const RedwoodCopilotComponent = () => {
 
   return (
     <main className="container mx-auto flex h-screen w-full flex-col">
+      {error && <div>Error: {error.message}</div>}
       <div className="flex-grow overflow-auto px-4 ">
+        <ExamplePromptCards setPrompt={setPrompt} />
         <div className="space-y-2">
           {fetching ||
             (data && data.createChatCompletion.length === 0 && (
@@ -75,7 +138,6 @@ const RedwoodCopilotComponent = () => {
                 </div>
               </div>
             ))}
-          {error && <div>Error: {error.message}</div>}
           {data && data.createChatCompletion.length > 0 && (
             <div className="space-y-4">
               <div className="text-md rounded-md border border-solid border-gray-300 bg-gray-200 p-4 text-gray-900">
@@ -148,7 +210,7 @@ const RedwoodCopilotComponent = () => {
           </button>
         </div>
         <div className="mt-2 text-center text-sm text-gray-500">
-          Redwood Copilot might make mistakes. I am just a tree.
+          Redwood Copilot might make mistakes. Don&apos;t leaf just yet.
         </div>
       </div>
     </main>

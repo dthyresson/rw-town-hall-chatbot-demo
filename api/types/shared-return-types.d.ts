@@ -80,6 +80,7 @@ export interface Query {
   codebase?: string | null
   createChatCompletion: ChatCompletion[]
   fastField: string
+  loadFile?: string | null
   post?: PPost | null
   posts: PPost[]
   redwood?: Redwood | null

@@ -8,6 +8,7 @@
 # Redwood Copilot Demo
 ## with OpenAI and GraphQL Streaming
 
+This project demonstrates how to use RedwoodJS, OpenAI and GraphQL Streaming to build a Chatbot that can answer questions about your code.
 
 ###
 Codebase Generator
@@ -175,6 +176,7 @@ type Query {
 
   """A field that resolves fast."""
   fastField: String!
+  loadFile(path: String): String
   post(id: Int!): Post
   posts: [Post!]!
 
@@ -540,10 +542,10 @@ import { logger } from 'src/lib/logger'
 
 export const CODEBASE = 'CODEBASE_TOC.md'
 
-export const readCodebaseFile = () => {
+export const readCodebaseFile = (filePathToRead?: string) => {
   const paths = getPaths()
-  const filePath = path.join(paths.base, CODEBASE)
-  logger.debug({ filePath }, 'Reading codebase file')
+  const filePath = path.join(paths.base, filePathToRead || CODEBASE)
+  logger.debug({ filePath }, 'Reading file')
   return fs.readFileSync(filePath, 'utf-8')
 }
 
@@ -559,6 +561,7 @@ import type { GenCodebaseInput } from 'types/shared-schema-types'
 
 import { getConfig, getPaths } from '@redwoodjs/project-config'
 
+// We'll switch to Langbase after their launch today
 import {
   LANGBASE_API_KEY,
   LANGBASE_MEMORY_DOCUMENTS_ENDPOINT,
@@ -566,63 +569,6 @@ import {
 import { logger } from 'src/lib/logger'
 
 export const CODEBASE_FILENAME = 'CODEBASE_TOC.md'
-
-const getSignedUploadUrl = async () => {
-  if (!LANGBASE_API_KEY) {
-    throw new Error('LANGBASE_API_KEY is not set in the environment variables')
-  }
-
-  const memoryName = process.env.LANGBASE_MEMORY_NAME
-  const ownerLogin = process.env.LANGBASE_OWNER_LOGIN
-
-  if (!memoryName || !ownerLogin) {
-    throw new Error(
-      'LANGBASE_MEMORY_NAME and LANGBASE_OWNER_LOGIN must be set in the environment variables'
-    )
-  }
-
-  const newDoc = {
-    memoryName,
-    ownerLogin,
-    fileName: CODEBASE_FILENAME,
-  }
-
-  logger.info('Creating new document in Langbase:', newDoc)
-  logger.info('URL:', LANGBASE_MEMORY_DOCUMENTS_ENDPOINT)
-  logger.info('API Key:', LANGBASE_API_KEY)
-
-  const response = await fetch(LANGBASE_MEMORY_DOCUMENTS_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${LANGBASE_API_KEY}`,
-    },
-    body: JSON.stringify(newDoc),
-  })
-
-  const signedUploadUrl = await response.json()
-
-  return signedUploadUrl
-}
-
-const uploadDocument = async (signedUrl, filePath) => {
-  const file = fs.readFileSync(filePath, 'utf-8')
-  logger.info({ signedUrl }, 'Uploading document to Langbase')
-  try {
-    const response = await fetch(signedUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'text/markdown',
-      },
-      body: file,
-    })
-
-    return response
-  } catch (error) {
-    logger.error({ error }, 'Error uploading document to Langbase')
-    throw error
-  }
-}
 
 const getRedwoodAppTitle = (): string => {
   const config = getConfig()
@@ -710,10 +656,6 @@ export const generate = async (args?: GenCodebaseInput) => {
   const tocContent = createMarkdownTOC(files)
 
   fs.writeFileSync(CODEBASE_FILENAME, tocContent)
-  // logger.info(
-  //   { tocContent, CODEBASE_FILENAME },
-  //   `:: Table of contents generated ::`
-  // )
 
   if (args?.upload) {
     const { signedUrl } = await getSignedUploadUrl()
@@ -729,6 +671,63 @@ export const generate = async (args?: GenCodebaseInput) => {
   }
 
   return true
+}
+
+const getSignedUploadUrl = async () => {
+  if (!LANGBASE_API_KEY) {
+    throw new Error('LANGBASE_API_KEY is not set in the environment variables')
+  }
+
+  const memoryName = process.env.LANGBASE_MEMORY_NAME
+  const ownerLogin = process.env.LANGBASE_OWNER_LOGIN
+
+  if (!memoryName || !ownerLogin) {
+    throw new Error(
+      'LANGBASE_MEMORY_NAME and LANGBASE_OWNER_LOGIN must be set in the environment variables'
+    )
+  }
+
+  const newDoc = {
+    memoryName,
+    ownerLogin,
+    fileName: CODEBASE_FILENAME,
+  }
+
+  logger.info('Creating new document in Langbase:', newDoc)
+  logger.info('URL:', LANGBASE_MEMORY_DOCUMENTS_ENDPOINT)
+  logger.info('API Key:', LANGBASE_API_KEY)
+
+  const response = await fetch(LANGBASE_MEMORY_DOCUMENTS_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${LANGBASE_API_KEY}`,
+    },
+    body: JSON.stringify(newDoc),
+  })
+
+  const signedUploadUrl = await response.json()
+
+  return signedUploadUrl
+}
+
+const uploadDocument = async (signedUrl, filePath) => {
+  const file = fs.readFileSync(filePath, 'utf-8')
+  logger.info({ signedUrl }, 'Uploading document to Langbase')
+  try {
+    const response = await fetch(signedUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'text/markdown',
+      },
+      body: file,
+    })
+
+    return response
+  } catch (error) {
+    logger.error({ error }, 'Error uploading document to Langbase')
+    throw error
+  }
 }
 
 ```
@@ -847,6 +846,7 @@ export const schema = gql`
   }
   type Query {
     codebase: String @skipAuth
+    loadFile(path: String): String @skipAuth
   }
 `
 
@@ -1026,6 +1026,7 @@ export const schema = gql`
   }
   type Query {
     codebase: String @skipAuth
+    loadFile(path: String): String @skipAuth
   }
 `
 
@@ -1267,6 +1268,8 @@ export const createChatCompletion = async ({ input }) => {
     return streamDebugChatCompletion(prompt)
   }
 
+  // For now we'll use OpenAI but
+  // We'll switch to Langbase after their launch today
   return new Repeater<ChatCompletion>(async (push, stop) => {
     const publish = async () => {
       try {
@@ -1331,7 +1334,11 @@ export const createChatCompletion = async ({ input }) => {
 #### api/src/services/codebase/codebase.ts
 
 ```ts file="api/src/services/codebase/codebase.ts"
-import type { GenerateCodebaseResolver, CodebaseResolver } from 'types/codebase'
+import type {
+  LoadFileResolver,
+  GenerateCodebaseResolver,
+  CodebaseResolver,
+} from 'types/codebase'
 import type { GenCodebaseInput } from 'types/shared-schema-types'
 
 import { readCodebaseFile } from 'src/lib/codebaseGenerator/codebase'
@@ -1347,6 +1354,10 @@ export const generateCodebase: GenerateCodebaseResolver = async ({
 
 export const codebase: CodebaseResolver = async () => {
   return await readCodebaseFile()
+}
+
+export const loadFile: LoadFileResolver = async ({ path }) => {
+  return await readCodebaseFile(path)
 }
 
 ```
@@ -1681,20 +1692,14 @@ export default newMessage
 
 import { Router, Route, Set } from '@redwoodjs/router'
 
-import ScaffoldLayout from 'src/layouts/ScaffoldLayout'
-
 import RedwoodCopilotLayout from 'src/layouts/RedwoodCopilotLayout/RedwoodCopilotLayout'
+import ScaffoldLayout from 'src/layouts/ScaffoldLayout'
 
 const Routes = () => {
   return (
     <Router>
-      <Set wrap={ScaffoldLayout} title="Posts" titleTo="posts" buttonLabel="New Post" buttonTo="newPost">
-        <Route path="/posts/new" page={PostNewPostPage} name="newPost" />
-        <Route path="/posts/{id:Int}/edit" page={PostEditPostPage} name="editPost" />
-        <Route path="/posts/{id:Int}" page={PostPostPage} name="post" />
-        <Route path="/posts" page={PostPostsPage} name="posts" />
-      </Set>
       <Set wrap={RedwoodCopilotLayout}>
+        <Route path="/view-file" page={ViewFilePage} name="viewFile" />
         <Route path="/redwood-copilot" page={RedwoodCopilotPage} name="redwoodCopilot" />
         <Route path="/alphabet" page={AlphabetPage} name="alphabet" />
         <Route path="/chat-rooms" page={ChatRoomsPage} name="chatRooms" />
@@ -1702,6 +1707,12 @@ const Routes = () => {
         <Route path="/auctions" page={AuctionsPage} name="auctions" />
         <Route path="/auction/{id:ID}" page={AuctionPage} name="auction" />
         <Route path="/" page={HomePage} name="home" />
+        <Set wrap={ScaffoldLayout} title="Posts" titleTo="posts" buttonLabel="New Post" buttonTo="newPost">
+          <Route path="/posts/new" page={PostNewPostPage} name="newPost" />
+          <Route path="/posts/{id:Int}/edit" page={PostEditPostPage} name="editPost" />
+          <Route path="/posts/{id:Int}" page={PostPostPage} name="post" />
+          <Route path="/posts" page={PostPostsPage} name="posts" />
+        </Set>
       </Set>
       <Route notfound page={NotFoundPage} />
     </Router>
@@ -2004,6 +2015,7 @@ import {
   SparklesIcon,
 } from '@heroicons/react/20/solid'
 
+import { Link, routes } from '@redwoodjs/router'
 import { Metadata } from '@redwoodjs/web'
 
 import CodebaseCell from 'src/components/CodebaseCell'
@@ -2012,28 +2024,29 @@ const features = [
   {
     name: 'Codebase Generator',
     description: 'First we generate a file with your entire RedwoodJS project.',
-    href: '#',
+    path: 'api/src/lib/codebaseGenerator/codebaseGenerator.ts',
     icon: CodeBracketIcon,
   },
   {
     name: 'OpenAI',
     description:
       'We send that codebase to OpenAI and ask questions about it using our Redwood Copilot chatbot.',
-    href: '#',
+    path: 'api/src/services/chatCompletions/chatCompletions.ts',
     icon: SparklesIcon,
   },
   {
     name: 'GraphQL Streaming',
     description:
       'Redwood Realtime with GraphQL Streaming will stream the response from OpenAI to the client.',
-    href: '#',
+    path: 'api/src/lib/chatCompletions/helpers.ts',
+
     icon: BoltIcon,
   },
 ]
 
 function Example() {
   return (
-    <div className="bg-white py-24 sm:py-32">
+    <div className="bg-white py-12 sm:py-32">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
         <div className="mx-auto max-w-2xl lg:text-center">
           <h2 className=" text-base font-semibold leading-7 text-green-600">
@@ -2065,12 +2078,12 @@ function Example() {
                 <dd className="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-600">
                   <p className="flex-auto">{feature.description}</p>
                   <p className="mt-6">
-                    <a
-                      href={feature.href}
+                    <Link
+                      to={routes.viewFile({ path: feature.path })}
                       className="text-sm font-semibold leading-6 text-green-600"
                     >
-                      Learn more <span aria-hidden="true">→</span>
-                    </a>
+                      Look at the code <span aria-hidden="true">→</span>
+                    </Link>
                   </p>
                 </dd>
               </div>
@@ -2158,6 +2171,43 @@ export default () => (
 export default function RedwoodCopilotPage() {
   return <>My page</>
 }
+
+```
+
+#### web/src/pages/ViewFilePage/ViewFilePage.tsx
+
+```tsx file="web/src/pages/ViewFilePage/ViewFilePage.tsx"
+import { BackwardIcon } from '@heroicons/react/24/outline'
+
+import { Link, routes } from '@redwoodjs/router'
+import { Metadata } from '@redwoodjs/web'
+
+import LoadFileCell from 'src/components/LoadFileCell'
+
+type ViewFilePageProps = {
+  path: string
+}
+
+const ViewFilePage = ({ path }: ViewFilePageProps) => {
+  return (
+    <div className="container mx-auto mt-12 w-full">
+      <Metadata title="ViewFile" description="ViewFile page" />
+      <div className="flex flex-col space-y-4">
+        <h1 className="text-2xl font-bold">
+          <Link to={routes.home()}>
+            <BackwardIcon className="mr-6 inline-block h-6 w-6" />
+          </Link>
+          View File
+        </h1>
+
+        <p className="text-lg font-bold text-gray-800">{path}</p>
+        <LoadFileCell path={path} />
+      </div>
+    </div>
+  )
+}
+
+export default ViewFilePage
 
 ```
 
@@ -2479,6 +2529,53 @@ export const Success = ({
 
 ```
 
+#### web/src/components/LoadFileCell/LoadFileCell.tsx
+
+```tsx file="web/src/components/LoadFileCell/LoadFileCell.tsx"
+import type {
+  FindLoadFileQuery,
+  FindLoadFileQueryVariables,
+} from 'types/graphql'
+
+import type {
+  CellSuccessProps,
+  CellFailureProps,
+  TypedDocumentNode,
+} from '@redwoodjs/web'
+
+import Markdown from 'src/components/Markdown'
+
+export const QUERY: TypedDocumentNode<
+  FindLoadFileQuery,
+  FindLoadFileQueryVariables
+> = gql`
+  query FindLoadFileQuery($path: String!) {
+    loadFile(path: $path)
+  }
+`
+
+export const Loading = () => <div>Loading...</div>
+
+export const Empty = () => <div>Empty</div>
+
+export const Failure = ({
+  error,
+}: CellFailureProps<FindLoadFileQueryVariables>) => (
+  <div style={{ color: 'red' }}>Error: {error?.message}</div>
+)
+
+export const Success = ({
+  loadFile,
+}: CellSuccessProps<FindLoadFileQuery, FindLoadFileQueryVariables>) => {
+  return (
+    <div className="mx-auto rounded-md border border-green-300 bg-green-100 p-4 lg:w-2/3">
+      <Markdown>{`\`\`\`ts ${loadFile}\`\`\``}</Markdown>
+    </div>
+  )
+}
+
+```
+
 #### web/src/components/Markdown/Markdown.tsx
 
 ```tsx file="web/src/components/Markdown/Markdown.tsx"
@@ -2765,7 +2862,7 @@ const RedwoodCopilotComponent = () => {
           </button>
         </div>
         <div className="mt-2 text-center text-sm text-gray-500">
-          Redwood Copilot might make mistakes. I am just a tree.
+          Redwood Copilot might make mistakes. Don&apos;t leaf just yet.
         </div>
       </div>
     </main>

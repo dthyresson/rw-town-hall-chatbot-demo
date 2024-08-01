@@ -4,36 +4,38 @@ import {
   SparklesIcon,
 } from '@heroicons/react/20/solid'
 
+import { Link, routes } from '@redwoodjs/router'
 import { Metadata } from '@redwoodjs/web'
 
 import CodebaseCell from 'src/components/CodebaseCell'
 
-const features = [
+const headings = [
   {
     name: 'Codebase Generator',
     description: 'First we generate a file with your entire RedwoodJS project.',
-    href: '#',
+    path: 'api/src/lib/codebaseGenerator/codebaseGenerator.ts',
     icon: CodeBracketIcon,
   },
   {
     name: 'OpenAI',
     description:
       'We send that codebase to OpenAI and ask questions about it using our Redwood Copilot chatbot.',
-    href: '#',
+    path: 'api/src/services/chatCompletions/chatCompletions.ts',
     icon: SparklesIcon,
   },
   {
     name: 'GraphQL Streaming',
     description:
       'Redwood Realtime with GraphQL Streaming will stream the response from OpenAI to the client.',
-    href: '#',
+    path: 'api/src/lib/chatCompletions/helpers.ts',
+
     icon: BoltIcon,
   },
 ]
 
-function Example() {
+function HeadingCards() {
   return (
-    <div className="bg-white py-24 sm:py-32">
+    <div className="bg-white py-12 sm:py-32">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
         <div className="mx-auto max-w-2xl lg:text-center">
           <h2 className=" text-base font-semibold leading-7 text-green-600">
@@ -53,7 +55,7 @@ function Example() {
         </div>
         <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
           <dl className="grid max-w-xl grid-cols-1 gap-x-8 gap-y-16 lg:max-w-none lg:grid-cols-3">
-            {features.map((feature) => (
+            {headings.map((feature) => (
               <div key={feature.name} className="flex flex-col">
                 <dt className="flex items-center gap-x-3 text-base font-semibold leading-7 text-gray-900">
                   <feature.icon
@@ -65,12 +67,12 @@ function Example() {
                 <dd className="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-600">
                   <p className="flex-auto">{feature.description}</p>
                   <p className="mt-6">
-                    <a
-                      href={feature.href}
+                    <Link
+                      to={routes.viewFile({ path: feature.path })}
                       className="text-sm font-semibold leading-6 text-green-600"
                     >
-                      Learn more <span aria-hidden="true">→</span>
-                    </a>
+                      Look at the code <span aria-hidden="true">→</span>
+                    </Link>
                   </p>
                 </dd>
               </div>
@@ -90,7 +92,7 @@ const HomePage = () => {
         description="Redwood Copiliot Demo with OpenAI and GraphQL Streaming"
       />
 
-      <Example />
+      <HeadingCards />
       <div className="mx-auto rounded-md border border-green-300 bg-green-100 p-4 lg:w-2/3">
         <CodebaseCell />
       </div>

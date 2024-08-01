@@ -27,3 +27,15 @@ export interface CodebaseResolver {
     }
   ): Promise<string | null>
 }
+
+/** SDL: loadFile(path: String): String */
+export interface LoadFileResolver {
+  (
+    args: { path?: string },
+    obj?: {
+      root: Query
+      context: RedwoodGraphQLContext
+      info: GraphQLResolveInfo
+    }
+  ): Promise<string | null>
+}

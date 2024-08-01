@@ -1,4 +1,8 @@
-import type { GenerateCodebaseResolver, CodebaseResolver } from 'types/codebase'
+import type {
+  LoadFileResolver,
+  GenerateCodebaseResolver,
+  CodebaseResolver,
+} from 'types/codebase'
 import type { GenCodebaseInput } from 'types/shared-schema-types'
 
 import { readCodebaseFile } from 'src/lib/codebaseGenerator/codebase'
@@ -14,4 +18,8 @@ export const generateCodebase: GenerateCodebaseResolver = async ({
 
 export const codebase: CodebaseResolver = async () => {
   return await readCodebaseFile()
+}
+
+export const loadFile: LoadFileResolver = async ({ path }) => {
+  return await readCodebaseFile(path)
 }

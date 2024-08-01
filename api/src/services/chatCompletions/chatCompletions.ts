@@ -23,6 +23,8 @@ export const createChatCompletion = async ({ input }) => {
     return streamDebugChatCompletion(prompt)
   }
 
+  // For now we'll use OpenAI but
+  // We'll switch to Langbase after their launch today
   return new Repeater<ChatCompletion>(async (push, stop) => {
     const publish = async () => {
       try {

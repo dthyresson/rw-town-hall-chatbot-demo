@@ -5,6 +5,7 @@ import type { GenCodebaseInput } from 'types/shared-schema-types'
 
 import { getConfig, getPaths } from '@redwoodjs/project-config'
 
+// We'll switch to Langbase after their launch today
 import {
   LANGBASE_API_KEY,
   LANGBASE_MEMORY_DOCUMENTS_ENDPOINT,
@@ -12,63 +13,6 @@ import {
 import { logger } from 'src/lib/logger'
 
 export const CODEBASE_FILENAME = 'CODEBASE_TOC.md'
-
-const getSignedUploadUrl = async () => {
-  if (!LANGBASE_API_KEY) {
-    throw new Error('LANGBASE_API_KEY is not set in the environment variables')
-  }
-
-  const memoryName = process.env.LANGBASE_MEMORY_NAME
-  const ownerLogin = process.env.LANGBASE_OWNER_LOGIN
-
-  if (!memoryName || !ownerLogin) {
-    throw new Error(
-      'LANGBASE_MEMORY_NAME and LANGBASE_OWNER_LOGIN must be set in the environment variables'
-    )
-  }
-
-  const newDoc = {
-    memoryName,
-    ownerLogin,
-    fileName: CODEBASE_FILENAME,
-  }
-
-  logger.info('Creating new document in Langbase:', newDoc)
-  logger.info('URL:', LANGBASE_MEMORY_DOCUMENTS_ENDPOINT)
-  logger.info('API Key:', LANGBASE_API_KEY)
-
-  const response = await fetch(LANGBASE_MEMORY_DOCUMENTS_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${LANGBASE_API_KEY}`,
-    },
-    body: JSON.stringify(newDoc),
-  })
-
-  const signedUploadUrl = await response.json()
-
-  return signedUploadUrl
-}
-
-const uploadDocument = async (signedUrl, filePath) => {
-  const file = fs.readFileSync(filePath, 'utf-8')
-  logger.info({ signedUrl }, 'Uploading document to Langbase')
-  try {
-    const response = await fetch(signedUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'text/markdown',
-      },
-      body: file,
-    })
-
-    return response
-  } catch (error) {
-    logger.error({ error }, 'Error uploading document to Langbase')
-    throw error
-  }
-}
 
 const getRedwoodAppTitle = (): string => {
   const config = getConfig()
@@ -156,10 +100,6 @@ export const generate = async (args?: GenCodebaseInput) => {
   const tocContent = createMarkdownTOC(files)
 
   fs.writeFileSync(CODEBASE_FILENAME, tocContent)
-  // logger.info(
-  //   { tocContent, CODEBASE_FILENAME },
-  //   `:: Table of contents generated ::`
-  // )
 
   if (args?.upload) {
     const { signedUrl } = await getSignedUploadUrl()
@@ -175,4 +115,61 @@ export const generate = async (args?: GenCodebaseInput) => {
   }
 
   return true
+}
+
+const getSignedUploadUrl = async () => {
+  if (!LANGBASE_API_KEY) {
+    throw new Error('LANGBASE_API_KEY is not set in the environment variables')
+  }
+
+  const memoryName = process.env.LANGBASE_MEMORY_NAME
+  const ownerLogin = process.env.LANGBASE_OWNER_LOGIN
+
+  if (!memoryName || !ownerLogin) {
+    throw new Error(
+      'LANGBASE_MEMORY_NAME and LANGBASE_OWNER_LOGIN must be set in the environment variables'
+    )
+  }
+
+  const newDoc = {
+    memoryName,
+    ownerLogin,
+    fileName: CODEBASE_FILENAME,
+  }
+
+  logger.info('Creating new document in Langbase:', newDoc)
+  logger.info('URL:', LANGBASE_MEMORY_DOCUMENTS_ENDPOINT)
+  logger.info('API Key:', LANGBASE_API_KEY)
+
+  const response = await fetch(LANGBASE_MEMORY_DOCUMENTS_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${LANGBASE_API_KEY}`,
+    },
+    body: JSON.stringify(newDoc),
+  })
+
+  const signedUploadUrl = await response.json()
+
+  return signedUploadUrl
+}
+
+const uploadDocument = async (signedUrl, filePath) => {
+  const file = fs.readFileSync(filePath, 'utf-8')
+  logger.info({ signedUrl }, 'Uploading document to Langbase')
+  try {
+    const response = await fetch(signedUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'text/markdown',
+      },
+      body: file,
+    })
+
+    return response
+  } catch (error) {
+    logger.error({ error }, 'Error uploading document to Langbase')
+    throw error
+  }
 }
