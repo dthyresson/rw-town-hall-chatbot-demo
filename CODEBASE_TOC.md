@@ -20,6 +20,11 @@ We send that codebase to OpenAI and ask questions about it using our Redwood Cop
 ###GraphQL Streaming
 Redwood Realtime with GraphQL Streaming will stream the response from OpenAI to the client.
 
+## Todo
+
+* Use Langbase instead of OpenAI directly
+* Use RAG with RedwoodJS docs + AI assistant prompt to answer more questions.
+
 ```
 
 
@@ -612,6 +617,8 @@ const createMarkdownTOC = (files: string[]): string => {
       [paths.web.src + '/pages']: '### Pages',
       [paths.web.src + '/components']: '### Components',
       [paths.web.src + '/App.tsx']: '### App',
+      [paths.web.src + '/StreamProvider.tsx']: '### Stream Provider',
+      [paths.web.src + '/urql.ts']: '### Urql GraphQL Client',
     },
   }
 
@@ -1293,6 +1300,12 @@ export const createChatCompletion = async ({ input }) => {
             },
           ],
           stream: true as const,
+          // This mimics Langbase's "Precise" setting
+          max_tokens: 1000,
+          frequency_penalty: 0.5,
+          presence_penalty: 0.5,
+          temperature: 0.2,
+          top_p: 0.75,
         })
         logger.debug('OpenAI stream received started ...')
 
@@ -2020,7 +2033,7 @@ import { Metadata } from '@redwoodjs/web'
 
 import CodebaseCell from 'src/components/CodebaseCell'
 
-const features = [
+const headings = [
   {
     name: 'Codebase Generator',
     description: 'First we generate a file with your entire RedwoodJS project.',
@@ -2044,7 +2057,7 @@ const features = [
   },
 ]
 
-function Example() {
+function HeadingCards() {
   return (
     <div className="bg-white py-12 sm:py-32">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
@@ -2066,7 +2079,7 @@ function Example() {
         </div>
         <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
           <dl className="grid max-w-xl grid-cols-1 gap-x-8 gap-y-16 lg:max-w-none lg:grid-cols-3">
-            {features.map((feature) => (
+            {headings.map((feature) => (
               <div key={feature.name} className="flex flex-col">
                 <dt className="flex items-center gap-x-3 text-base font-semibold leading-7 text-gray-900">
                   <feature.icon
@@ -2103,7 +2116,7 @@ const HomePage = () => {
         description="Redwood Copiliot Demo with OpenAI and GraphQL Streaming"
       />
 
-      <Example />
+      <HeadingCards />
       <div className="mx-auto rounded-md border border-green-300 bg-green-100 p-4 lg:w-2/3">
         <CodebaseCell />
       </div>
@@ -2752,6 +2765,75 @@ const getRandomThinkingStatement = () => {
     Math.floor(Math.random() * thinkingStatements.length)
   ]
 }
+
+const examplePrompts = [
+  {
+    title: 'Summary',
+    prompt: 'What does this RedwoodJS app do?',
+  },
+  {
+    title: 'GraphQL Streaming',
+    prompt:
+      'How does GraphQL streaming work with the @stream directive for chat completions?',
+  },
+  {
+    title: 'Chatbot',
+    prompt:
+      'Explain how the chatbot UI in the RedwoodCopilot component works in this app? Show the code to send the prompt to the server.',
+  },
+  {
+    title: 'Database',
+    prompt: 'What database is this app using and describe the schema?',
+  },
+]
+
+const ExamplePromptCards = ({ setPrompt }) => {
+  return (
+    <div className="relative overflow-x-auto py-4">
+      <ul className="flex space-x-4 whitespace-nowrap">
+        {examplePrompts.map((prompt) => (
+          <li
+            key={prompt.title}
+            className="inline-block w-72 flex-shrink-0 rounded-lg bg-green-100 shadow transition-colors duration-300"
+          >
+            <button
+              className="flex h-full w-full cursor-pointer flex-col items-center justify-center space-y-3 p-6 text-center"
+              onClick={() => {
+                setPrompt(prompt.prompt)
+              }}
+            >
+              <div className="rounded-lg">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-6 w-6"
+                  strokeWidth="2"
+                  stroke="currentColor"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                  <path d="M14 6l7 7l-4 4"></path>
+                  <path d="M5.828 18.172a2.828 2.828 0 0 0 4 0l10.586 -10.586a2 2 0 0 0 0 -2.829l-1.171 -1.171a2 2 0 0 0 -2.829 0l-10.586 10.586a2.828 2.828 0 0 0 0 4z"></path>
+                  <path d="M4 20l1.768 -1.768"></path>
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-wrap text-sm font-medium text-green-800 transition-colors duration-300">
+                  {prompt.title}
+                </h3>
+                <p className="mt-1 text-wrap text-sm text-green-700 transition-colors duration-300">
+                  {prompt.prompt}
+                </p>
+              </div>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 const RedwoodCopilotComponent = () => {
   const [prompt, setPrompt] = useState('')
   const [thinkingStatement, setThinkingStatement] = useState('')
@@ -2772,7 +2854,9 @@ const RedwoodCopilotComponent = () => {
 
   return (
     <main className="container mx-auto flex h-screen w-full flex-col">
+      {error && <div>Error: {error.message}</div>}
       <div className="flex-grow overflow-auto px-4 ">
+        <ExamplePromptCards setPrompt={setPrompt} />
         <div className="space-y-2">
           {fetching ||
             (data && data.createChatCompletion.length === 0 && (
@@ -2789,7 +2873,6 @@ const RedwoodCopilotComponent = () => {
                 </div>
               </div>
             ))}
-          {error && <div>Error: {error.message}</div>}
           {data && data.createChatCompletion.length > 0 && (
             <div className="space-y-4">
               <div className="text-md rounded-md border border-solid border-gray-300 bg-gray-200 p-4 text-gray-900">
@@ -3522,5 +3605,34 @@ const App = () => (
 )
 
 export default App
+
+```
+
+### Stream Provider
+
+#### web/src/StreamProvider.tsx
+
+```tsx file="web/src/StreamProvider.tsx"
+import { Provider, client } from './urql'
+export { g, useQuery } from './urql'
+
+export const StreamProvider = ({ children }: { children: React.ReactNode }) => (
+  <Provider value={client}>{children}</Provider>
+)
+
+```
+
+### Urql GraphQL Client
+
+#### web/src/urql.ts
+
+```ts file="web/src/urql.ts"
+import { createClient, fetchExchange } from 'urql'
+export { Provider, gql as g, useQuery } from 'urql'
+
+export const client = createClient({
+  url: '/.redwood/functions/graphql',
+  exchanges: [fetchExchange],
+})
 
 ```

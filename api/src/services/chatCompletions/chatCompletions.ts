@@ -48,6 +48,12 @@ export const createChatCompletion = async ({ input }) => {
             },
           ],
           stream: true as const,
+          // This mimics Langbase's "Precise" setting
+          max_tokens: 1000,
+          frequency_penalty: 0.5,
+          presence_penalty: 0.5,
+          temperature: 0.2,
+          top_p: 0.75,
         })
         logger.debug('OpenAI stream received started ...')
 

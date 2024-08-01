@@ -56,6 +56,8 @@ const createMarkdownTOC = (files: string[]): string => {
       [paths.web.src + '/pages']: '### Pages',
       [paths.web.src + '/components']: '### Components',
       [paths.web.src + '/App.tsx']: '### App',
+      [paths.web.src + '/StreamProvider.tsx']: '### Stream Provider',
+      [paths.web.src + '/urql.ts']: '### Urql GraphQL Client',
     },
   }
 

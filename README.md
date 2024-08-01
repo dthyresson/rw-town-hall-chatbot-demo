@@ -12,3 +12,8 @@ We send that codebase to OpenAI and ask questions about it using our Redwood Cop
 
 ###GraphQL Streaming
 Redwood Realtime with GraphQL Streaming will stream the response from OpenAI to the client.
+
+## Todo
+
+* Use Langbase instead of OpenAI directly
+* Use RAG with RedwoodJS docs + AI assistant prompt to answer more questions.
