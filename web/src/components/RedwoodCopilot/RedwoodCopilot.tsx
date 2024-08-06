@@ -108,11 +108,12 @@ const ExamplePromptCards = ({ setPrompt }) => {
 const RedwoodCopilotComponent = () => {
   const [prompt, setPrompt] = useState('')
   const [thinkingStatement, setThinkingStatement] = useState('')
+  const [provider, setProvider] = useState('OPENAI')
 
   const [{ data, fetching, error }, executeQuery] = useQuery({
     query: ChatQuery,
     variables: {
-      input: { prompt, debug, provider: 'OPENAI' },
+      input: { prompt, debug, provider },
     },
     pause: true,
   })
@@ -199,6 +200,16 @@ const RedwoodCopilotComponent = () => {
             disabled={fetching}
             className="flex-grow rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500"
           />
+
+          <select
+            value={provider}
+            onChange={(e) => setProvider(e.target.value)}
+            className="rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+          >
+            <option value="OPENAI">OpenAI</option>
+            <option value="OPENAI_WITH_UNKEY_CACHE">OpenAI Cached</option>
+            <option value="LANGBASE">Langbase</option>
+          </select>
 
           <button
             type="button"
