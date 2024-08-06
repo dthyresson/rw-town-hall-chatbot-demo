@@ -68,6 +68,28 @@ Subsequent responses will be cached. You can monitor the cache via our dashboard
 
 Unkey’s semantic cache supports streaming, making it useful for web-based chat applications where you want to display results in real-time.
 
+# How To
+
+## Config
+
+You will need to following envars:
+
+```
+OPENAI_API_KEY=
+
+LANGBASE_PIPE_API_KEY=
+LANGBASE_API_KEY=
+LANGBASE_MEMORY_NAME=
+LANGBASE_OWNER_LOGIN=
+
+UNKEY_SEMANTIC_CACHE_GATEWAY=
+```
+
+## Scripts
+
+* `yarn rw exec gen-codebase` - generates codebase file `CODEBASE_TOC.md`
+* `yarn rw exec gen-codebase --upload=true` uploads to Langbase
+
 ## Future
 
 * Use RAG with RedwoodJS docs + AI assistant prompt to answer more questions.
@@ -681,13 +703,8 @@ import type { GenCodebaseInput } from 'types/shared-schema-types'
 
 import { getConfig, getPaths } from '@redwoodjs/project-config'
 
-// We'll switch to Langbase after their launch today
-import {
-  LANGBASE_API_KEY,
-  LANGBASE_MEMORY_DOCUMENTS_ENDPOINT,
-} from 'src/lib/langbase/langbase'
+import { getSignedUploadUrl, uploadDocument } from 'src/lib/langbase'
 import { logger } from 'src/lib/logger'
-
 export const CODEBASE_FILENAME = 'CODEBASE_TOC.md'
 
 const getRedwoodAppTitle = (): string => {
@@ -776,15 +793,22 @@ export const generate = async (args?: GenCodebaseInput) => {
 
   const files = await getCodeFiles()
   const tocContent = createMarkdownTOC(files)
-
-  fs.writeFileSync(CODEBASE_FILENAME, tocContent)
+  const fileName = CODEBASE_FILENAME
+  fs.writeFileSync(fileName, tocContent)
 
   if (args?.upload) {
-    const { signedUrl } = await getSignedUploadUrl()
+    const { signedUrl } = await getSignedUploadUrl({
+      fileName,
+      memory: process.env.LANGBASE_MEMORY_NAME_CODEBASE,
+    })
 
     if (signedUrl) {
       logger.info(':: Uploading table of contents to Langbase ::')
-      await uploadDocument(signedUrl, CODEBASE_FILENAME)
+      await uploadDocument({
+        signedUrl,
+        filePath: fileName,
+        contentType: 'text/markdown',
+      })
     } else {
       logger.error(
         ':: Failed to get signed URL for uploading table of contents to Langbase ::'
@@ -795,63 +819,53 @@ export const generate = async (args?: GenCodebaseInput) => {
   return true
 }
 
-const getSignedUploadUrl = async () => {
-  if (!LANGBASE_API_KEY) {
-    throw new Error('LANGBASE_API_KEY is not set in the environment variables')
-  }
+```
 
-  const memoryName = process.env.LANGBASE_MEMORY_NAME
-  const ownerLogin = process.env.LANGBASE_OWNER_LOGIN
+#### api/src/lib/documentationGenerator/documentationGenerator.ts
 
-  if (!memoryName || !ownerLogin) {
-    throw new Error(
-      'LANGBASE_MEMORY_NAME and LANGBASE_OWNER_LOGIN must be set in the environment variables'
-    )
-  }
+```ts file="api/src/lib/documentationGenerator/documentationGenerator.ts"
+// import { getSignedUploadUrl, uploadDocument } from 'src/lib/langbase'
+import path from 'path'
 
-  const newDoc = {
-    memoryName,
-    ownerLogin,
-    fileName: CODEBASE_FILENAME,
-  }
+import fg from 'fast-glob'
 
-  logger.info('Creating new document in Langbase:', newDoc)
-  logger.info('URL:', LANGBASE_MEMORY_DOCUMENTS_ENDPOINT)
-  logger.info('API Key:', LANGBASE_API_KEY)
+import { getSignedUploadUrl, uploadDocument } from 'src/lib/langbase'
+import { logger } from 'src/lib/logger'
 
-  const response = await fetch(LANGBASE_MEMORY_DOCUMENTS_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${LANGBASE_API_KEY}`,
-    },
-    body: JSON.stringify(newDoc),
+export const generateDocumentation = async () => {
+  const docsPath = process.env.REDWOOD_DOCS_PATH
+  logger.info({ docsPath }, 'Generating documentation')
+
+  // all markdown files (both .md and .mdx) in the docs path
+  const filepaths = await fg(['**/*.md', '**/*.mdx'], { cwd: `${docsPath}` })
+
+  // for each filepath, make an collection of name and path where name is unique  based on filepath replacing all slashes with dashes
+  const collections = filepaths.map((filepath) => {
+    const name = filepath.split('/').join('-')
+    return { name, filepath: path.join(docsPath, filepath) }
   })
 
-  const signedUploadUrl = await response.json()
+  logger.info({ collections }, 'Found files')
 
-  return signedUploadUrl
-}
-
-const uploadDocument = async (signedUrl, filePath) => {
-  const file = fs.readFileSync(filePath, 'utf-8')
-  logger.info({ signedUrl }, 'Uploading document to Langbase')
-  try {
-    const response = await fetch(signedUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'text/markdown',
-      },
-      body: file,
+  // for each collection, upload to langbase
+  for (const collection of collections) {
+    logger.info({ collection }, 'Uploading collection')
+    const { name, filepath } = collection
+    logger.info({ name, filepath }, 'Uploading file')
+    const signedUrl = await getSignedUploadUrl({
+      fileName: name,
+      memory: process.env.LANGBASE_MEMORY_NAME_DOCS,
     })
+    logger.info({ signedUrl }, 'Got signed url')
 
-    logger.info({ response }, 'Document uploaded to Langbase')
-
-    return response
-  } catch (error) {
-    logger.error({ error }, 'Error uploading document to Langbase')
-    throw error
+    const response = await uploadDocument({
+      signedUrl,
+      filePath: filepath,
+      contentType: 'text/markdown',
+    })
+    logger.info({ response, name, path }, 'Uploaded file')
   }
+  logger.info(':: Documentation generated and uploaded to langbase ::')
 }
 
 ```
@@ -859,7 +873,11 @@ const uploadDocument = async (signedUrl, filePath) => {
 #### api/src/lib/langbase/langbase.ts
 
 ```ts file="api/src/lib/langbase/langbase.ts"
+import fs from 'fs'
+
 import { Pipe } from 'langbase'
+
+import { logger } from 'src/lib/logger'
 
 export const LANGBASE_MEMORY_DOCUMENTS_ENDPOINT =
   process.env.LANGBASE_API_URL ||
@@ -885,6 +903,65 @@ export const stream = (prompt: string) =>
     ],
   })
 
+export const getSignedUploadUrl = async ({ fileName, memory }) => {
+  if (!LANGBASE_API_KEY) {
+    throw new Error('LANGBASE_API_KEY is not set in the environment variables')
+  }
+
+  const memoryName = memory || process.env.LANGBASE_MEMORY_NAME
+  const ownerLogin = process.env.LANGBASE_OWNER_LOGIN
+
+  if (!memoryName || !ownerLogin) {
+    throw new Error(
+      'LANGBASE_MEMORY_NAME and LANGBASE_OWNER_LOGIN must be set in the environment variables'
+    )
+  }
+
+  const newDoc = {
+    memoryName,
+    ownerLogin,
+    fileName,
+  }
+
+  logger.info('Creating new document in Langbase:', newDoc)
+  logger.info('URL:', LANGBASE_MEMORY_DOCUMENTS_ENDPOINT)
+  logger.info('API Key:', LANGBASE_API_KEY)
+
+  const response = await fetch(LANGBASE_MEMORY_DOCUMENTS_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${LANGBASE_API_KEY}`,
+    },
+    body: JSON.stringify(newDoc),
+  })
+
+  const signedUploadUrl = await response.json()
+
+  return signedUploadUrl
+}
+
+export const uploadDocument = async ({ signedUrl, filePath, contentType }) => {
+  const file = fs.readFileSync(filePath, 'utf-8')
+  logger.info({ signedUrl }, 'Uploading document to Langbase')
+  try {
+    const response = await fetch(signedUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': contentType || 'text/markdown',
+      },
+      body: file,
+    })
+
+    logger.info({ response }, 'Document uploaded to Langbase')
+
+    return response
+  } catch (error) {
+    logger.error({ error }, 'Error uploading document to Langbase')
+    throw error
+  }
+}
+
 ```
 
 #### api/src/lib/openAI/openAI.ts
@@ -902,7 +979,7 @@ export const openAIClient = new OpenAI({
 // using the baseURL: https://auxiliary-solid-state-tennessine-4901.llm.unkey.io
 export const openAIClientWithUnkeyCache = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-  baseURL: 'https://auxiliary-solid-state-tennessine-4901.llm.unkey.io',
+  baseURL: process.env.UNKEY_SEMANTIC_CACHE_GATEWAY,
 })
 
 import { readCodebaseFile } from 'src/lib/codebaseGenerator/codebase'
