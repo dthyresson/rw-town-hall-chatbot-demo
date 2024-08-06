@@ -4,14 +4,31 @@ import path from 'path'
 
 import fg from 'fast-glob'
 
+import { getPaths } from '@redwoodjs/project-config'
+
 import { getSignedUploadUrl, uploadDocument } from 'src/lib/langbase'
 import { logger } from 'src/lib/logger'
 
-const HASH_FILE = 'doc_hashes.json'
+const HASH_FILE = path.join(getPaths().base, '.rw-chatbot', 'doc_hashes.json')
 
 const generateDocumentHash = (filePath: string): string => {
   const fileContent = fs.readFileSync(filePath, 'utf-8')
   return crypto.createHash('md5').update(fileContent).digest('hex')
+}
+
+const sortAndSaveHashes = () => {
+  logger.info('Sorting and saving hashes')
+  try {
+    const hashContent = fs.readFileSync(HASH_FILE, 'utf-8')
+    const hashes = JSON.parse(hashContent)
+    const sortedHashes = Object.fromEntries(
+      Object.entries(hashes).sort(([a], [b]) => a.localeCompare(b))
+    )
+    fs.writeFileSync(HASH_FILE, JSON.stringify(sortedHashes, null, 2))
+    logger.info('Sorted and saved hashes')
+  } catch (error) {
+    logger.error({ error }, 'Error sorting and saving hashes')
+  }
 }
 
 export const generateDocumentation = async () => {
@@ -62,6 +79,9 @@ export const generateDocumentation = async () => {
       logger.info({ name, filepath: fullPath }, 'File unchanged, skipping')
     }
   }
+
+  // Sort and save hashes after processing all files
+  sortAndSaveHashes()
 
   logger.info(':: Documentation generation and upload complete ::')
 }

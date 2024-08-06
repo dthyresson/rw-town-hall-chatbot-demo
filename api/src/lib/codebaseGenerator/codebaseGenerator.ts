@@ -1,4 +1,5 @@
 import * as fs from 'fs'
+import * as path from 'path'
 
 import fg from 'fast-glob'
 import type { GenCodebaseInput } from 'types/shared-schema-types'
@@ -7,7 +8,12 @@ import { getConfig, getPaths } from '@redwoodjs/project-config'
 
 import { getSignedUploadUrl, uploadDocument } from 'src/lib/langbase'
 import { logger } from 'src/lib/logger'
-export const CODEBASE_FILENAME = 'CODEBASE_TOC.md'
+
+const CODEBASE_FILENAME = path.join(
+  getPaths().base,
+  '.rw-chatbot',
+  'CODEBASE_TOC.md'
+)
 
 const getRedwoodAppTitle = (): string => {
   const config = getConfig()

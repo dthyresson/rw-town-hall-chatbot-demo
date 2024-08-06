@@ -40,7 +40,11 @@ Then create managed semantic memory (RAG) so your AI can talk to your data
 
 ### Langbase Demo
 
-The Langbase powered chat uses a [Pipe](https://langbase.com/docs/pipe/overview) with the project codebase attached. This codebase is uploaded to [memory](https://langbase.com/docs/memory/overview) via script or can be initiated by a GraphQL mutation.
+The Langbase powered chat uses a [Pipe](https://langbase.com/docs/pipe/overview) with the project codebase attached as memory.
+
+This codebase is uploaded to [memory](https://langbase.com/docs/memory/overview) via script or can be initiated by a GraphQL mutation.
+
+We can also upload all the RedwoodJS documentation to Langbase memory so one can chat with your code as well as docs.
 
 The pipe defines the:
 
@@ -79,16 +83,23 @@ OPENAI_API_KEY=
 
 LANGBASE_PIPE_API_KEY=
 LANGBASE_API_KEY=
-LANGBASE_MEMORY_NAME=
+LANGBASE_MEMORY_NAME_CODEBASE=
+LANGBASE_MEMORY_NAME_DOCS=
 LANGBASE_OWNER_LOGIN=
 
 UNKEY_SEMANTIC_CACHE_GATEWAY=
+
+REDWOOD_DOCS_PATH="/your/path/to/redwoodjs/redwood/docs/docs"
+
 ```
 
 ## Scripts
 
 * `yarn rw exec gen-codebase` - generates codebase file `CODEBASE_TOC.md`
-* `yarn rw exec gen-codebase --upload=true` uploads to Langbase
+* `yarn rw exec gen-codebase --upload=true` uploads to Langbase; needs `LANGBASE_MEMORY_NAME_CODEBASE`
+* `yarn rw exec gen-docs` fetches docs from a local RedwoodJS folder uploads docs to Langbase; keeps hash to upload only docs changed since last upload. needs `LANGBASE_MEMORY_NAME_DOCS`
+
+
 
 ## Future
 
@@ -697,6 +708,7 @@ export const readCodebaseFile = (filePathToRead?: string) => {
 
 ```ts file="api/src/lib/codebaseGenerator/codebaseGenerator.ts"
 import * as fs from 'fs'
+import * as path from 'path'
 
 import fg from 'fast-glob'
 import type { GenCodebaseInput } from 'types/shared-schema-types'
@@ -705,7 +717,12 @@ import { getConfig, getPaths } from '@redwoodjs/project-config'
 
 import { getSignedUploadUrl, uploadDocument } from 'src/lib/langbase'
 import { logger } from 'src/lib/logger'
-export const CODEBASE_FILENAME = 'CODEBASE_TOC.md'
+
+const CODEBASE_FILENAME = path.join(
+  getPaths().base,
+  '.rw-chatbot',
+  'CODEBASE_TOC.md'
+)
 
 const getRedwoodAppTitle = (): string => {
   const config = getConfig()
@@ -824,48 +841,74 @@ export const generate = async (args?: GenCodebaseInput) => {
 #### api/src/lib/documentationGenerator/documentationGenerator.ts
 
 ```ts file="api/src/lib/documentationGenerator/documentationGenerator.ts"
-// import { getSignedUploadUrl, uploadDocument } from 'src/lib/langbase'
+import crypto from 'crypto'
+import fs from 'fs'
 import path from 'path'
 
 import fg from 'fast-glob'
 
+import { getPaths } from '@redwoodjs/project-config'
+
 import { getSignedUploadUrl, uploadDocument } from 'src/lib/langbase'
 import { logger } from 'src/lib/logger'
+
+const HASH_FILE = path.join(getPaths().base, '.rw-chatbot', 'doc_hashes.json')
+
+const generateDocumentHash = (filePath: string): string => {
+  const fileContent = fs.readFileSync(filePath, 'utf-8')
+  return crypto.createHash('md5').update(fileContent).digest('hex')
+}
 
 export const generateDocumentation = async () => {
   const docsPath = process.env.REDWOOD_DOCS_PATH
   logger.info({ docsPath }, 'Generating documentation')
 
-  // all markdown files (both .md and .mdx) in the docs path
+  // Load existing hashes
+  let existingHashes = {}
+  try {
+    const hashContent = fs.readFileSync(HASH_FILE, 'utf-8')
+    existingHashes = JSON.parse(hashContent)
+  } catch (error) {
+    logger.info('No existing hash file found. Creating a new one.')
+  }
+
+  // Find all markdown files
   const filepaths = await fg(['**/*.md', '**/*.mdx'], { cwd: `${docsPath}` })
 
-  // for each filepath, make an collection of name and path where name is unique  based on filepath replacing all slashes with dashes
-  const collections = filepaths.map((filepath) => {
+  // Process each file
+  for (const filepath of filepaths) {
     const name = filepath.split('/').join('-')
-    return { name, filepath: path.join(docsPath, filepath) }
-  })
+    const fullPath = path.join(docsPath, filepath)
 
-  logger.info({ collections }, 'Found files')
+    // Calculate hash of file contents
+    const hash = generateDocumentHash(fullPath)
 
-  // for each collection, upload to langbase
-  for (const collection of collections) {
-    logger.info({ collection }, 'Uploading collection')
-    const { name, filepath } = collection
-    logger.info({ name, filepath }, 'Uploading file')
-    const signedUrl = await getSignedUploadUrl({
-      fileName: name,
-      memory: process.env.LANGBASE_MEMORY_NAME_DOCS,
-    })
-    logger.info({ signedUrl }, 'Got signed url')
+    if (existingHashes[name] !== hash) {
+      logger.info({ name, filepath: fullPath }, 'File changed, uploading')
 
-    const response = await uploadDocument({
-      signedUrl,
-      filePath: filepath,
-      contentType: 'text/markdown',
-    })
-    logger.info({ response, name, path }, 'Uploaded file')
+      const signedUrlResponse = await getSignedUploadUrl({
+        fileName: name,
+        memory: process.env.LANGBASE_MEMORY_NAME_DOCS,
+      })
+      const signedUrl = signedUrlResponse.signedUrl
+
+      const response = await uploadDocument({
+        signedUrl,
+        filePath: fullPath,
+        contentType: 'text/markdown',
+      })
+      logger.info({ response, name, path: fullPath }, 'Uploaded file')
+
+      // Update hash immediately after successful upload
+      existingHashes[name] = hash
+      fs.writeFileSync(HASH_FILE, JSON.stringify(existingHashes, null, 2))
+      logger.info({ name }, 'Updated hash after successful upload')
+    } else {
+      logger.info({ name, filepath: fullPath }, 'File unchanged, skipping')
+    }
   }
-  logger.info(':: Documentation generated and uploaded to langbase ::')
+
+  logger.info(':: Documentation generation and upload complete ::')
 }
 
 ```
