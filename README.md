@@ -93,6 +93,7 @@ REDWOOD_DOCS_PATH="/your/path/to/redwoodjs/redwood/docs/docs"
 * `yarn rw exec gen-docs` fetches docs from a local RedwoodJS folder uploads docs to Langbase; keeps hash to upload only docs changed since last upload. needs `LANGBASE_MEMORY_NAME_DOCS`
 
 
+> Note: All generated files are kept in the `.rw-chatbot` directory at the base of your project
 
 ## Future
 
