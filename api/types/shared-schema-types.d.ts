@@ -17,19 +17,20 @@ export interface BidInput {
   auctionId: ID
 }
 
-export interface ChatCompletion {
-  __typename?: 'ChatCompletion'
+export interface ChatInput {
+  __typename?: 'ChatInput'
+  debug?: boolean | null
+  prompt: string
+  provider?: ChatProvider | null
+}
+
+export type ChatProvider = 'LANGBASE' | 'OPENAI' | 'OPENAI_WITH_UNKEY_CACHE'
+
+export interface ChatResponse {
+  __typename?: 'ChatResponse'
   id: ID
   message: string
   prompt: string
-  threadId: ID
-}
-
-export interface CreateChatCompletionInput {
-  __typename?: 'CreateChatCompletionInput'
-  debug?: boolean | null
-  prompt: string
-  stream?: boolean | null
 }
 
 export interface CreatePostInput {
@@ -75,9 +76,8 @@ export interface Query {
   alphabet: string[]
   auction?: Auction | null
   auctions: Auction[]
-  chatCompletions: ChatCompletion[]
+  chat: ChatResponse[]
   codebase?: string | null
-  createChatCompletion: ChatCompletion[]
   fastField: string
   loadFile?: string | null
   post?: Post | null

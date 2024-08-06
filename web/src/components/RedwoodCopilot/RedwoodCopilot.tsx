@@ -7,18 +7,16 @@ import avatar from './avatars/rw-copilot-avatar.png'
 import avatarThinking from './avatars/rw-copilot-thinking.png'
 import redwoodDeveloperIcon from './avatars/rw-developer.png'
 
-const ChatCompletionQuery = g(`
-  query ChatCompletionQuery($input: CreateChatCompletionInput!) {
-    createChatCompletion(input: $input) @stream {
+const ChatQuery = g(`
+  query ChatQuery($input: ChatInput!) {
+    chat(input: $input) @stream {
       id
       message
-      threadId
       prompt
     }
   }`)
 
 const debug = false
-const stream = true
 
 const thinkingStatements = [
   'Photosynthesizing ideas...',
@@ -112,8 +110,10 @@ const RedwoodCopilotComponent = () => {
   const [thinkingStatement, setThinkingStatement] = useState('')
 
   const [{ data, fetching, error }, executeQuery] = useQuery({
-    query: ChatCompletionQuery,
-    variables: { input: { prompt, debug, stream } },
+    query: ChatQuery,
+    variables: {
+      input: { prompt, debug, provider: 'OPENAI' },
+    },
     pause: true,
   })
 
@@ -132,7 +132,7 @@ const RedwoodCopilotComponent = () => {
         <ExamplePromptCards setPrompt={setPrompt} />
         <div className="space-y-2">
           {fetching ||
-            (data && data.createChatCompletion.length === 0 && (
+            (data && data.chat.length === 0 && (
               <div className="group block flex-shrink-0">
                 <div className="flex animate-pulse items-center">
                   <div>
@@ -146,7 +146,7 @@ const RedwoodCopilotComponent = () => {
                 </div>
               </div>
             ))}
-          {data && data.createChatCompletion.length > 0 && (
+          {data && data.chat.length > 0 && (
             <div className="space-y-4">
               <div className="text-md rounded-md border border-solid border-gray-300 bg-gray-200 p-4 text-gray-900">
                 <div className="mb-4 flex justify-center">
@@ -158,7 +158,7 @@ const RedwoodCopilotComponent = () => {
                   />
                 </div>
                 <div className="text-md rounded-md border border-solid border-gray-300 bg-gray-100 p-4 text-gray-900">
-                  {data.createChatCompletion[0].prompt}
+                  {data.chat[0].prompt}
                 </div>
               </div>
               <div className="text-md rounded-md border border-solid border-green-300 bg-green-200 p-4 text-gray-900">
@@ -172,9 +172,7 @@ const RedwoodCopilotComponent = () => {
                 </div>
                 <div className="text-md rounded-md border border-solid border-green-300 bg-green-100 p-4 text-gray-900">
                   <Markdown>
-                    {data.createChatCompletion
-                      .map((completion) => completion.message)
-                      .join('')}
+                    {data.chat.map((response) => response.message).join('')}
                   </Markdown>
                 </div>
               </div>
