@@ -112,17 +112,22 @@ scalar BigInt
 
 scalar Byte
 
-type ChatCompletion {
+input ChatInput {
+  debug: Boolean = false
+  prompt: String!
+  provider: ChatProvider = OPENAI
+}
+
+enum ChatProvider {
+  LANGBASE
+  OPENAI
+  OPENAI_WITH_UNKEY_CACHE
+}
+
+type ChatResponse {
   id: ID!
   message: String!
   prompt: String!
-  threadId: ID!
-}
-
-input CreateChatCompletionInput {
-  debug: Boolean = false
-  prompt: String!
-  stream: Boolean = true
 }
 
 input CreatePostInput {
@@ -175,9 +180,8 @@ type Query {
   alphabet: [String!]!
   auction(id: ID!): Auction
   auctions: [Auction!]!
-  chatCompletions(threadId: ID!): [ChatCompletion!]!
+  chat(input: ChatInput!): [ChatResponse!]!
   codebase: String
-  createChatCompletion(input: CreateChatCompletionInput!): [ChatCompletion!]!
 
   """A field that resolves fast."""
   fastField: String!
@@ -468,27 +472,99 @@ export const realtime: RedwoodRealtimeOptions = {
 
 ```
 
-#### api/src/lib/chatCompletions/helpers.ts
+#### api/src/lib/chat/ChatRepeater.ts
 
-```ts file="api/src/lib/chatCompletions/helpers.ts"
+```ts file="api/src/lib/chat/ChatRepeater.ts"
 import { Repeater } from '@redwoodjs/realtime'
 
-import type { ChatCompletion } from 'src/lib/chatCompletions/types'
+import { logger } from 'src/lib/logger'
+
+import {
+  debugChatResponse,
+  emptyPromptChatResponse,
+  errorChatResponse,
+} from './responses'
+
+export const ChatRepeater = async ({
+  promptFunction,
+  prompt,
+  debug,
+  buildChatResponseFunction,
+}) => {
+  if (!prompt || prompt.trim() === '') {
+    return emptyPromptChatResponse(prompt)
+  }
+
+  if (debug) {
+    return debugChatResponse(prompt)
+  }
+  return new Repeater<ReturnType<typeof buildChatResponseFunction>>(
+    async (push, stop) => {
+      const publish = async () => {
+        try {
+          logger.debug('>> stream requested ...')
+
+          const stream = await promptFunction(prompt)
+
+          logger.debug('>> stream received started ...')
+
+          for await (const part of stream) {
+            const { content } = part.choices[0].delta
+
+            if (content) {
+              logger.debug({ content }, '>> stream received ...')
+              const chatResponse = buildChatResponseFunction(
+                part,
+                content,
+                prompt
+              )
+              console.debug(chatResponse, 'Publish chat chunk')
+              push(chatResponse)
+            }
+          }
+
+          logger.debug('>> stream received ended.')
+
+          stop()
+        } catch (error) {
+          logger.error(error, 'Error in >> stream:')
+          return errorChatResponse(prompt)
+        }
+      }
+
+      publish()
+
+      await stop.then(() => {
+        logger.debug('stream done')
+      })
+    }
+  )
+}
+
+```
+
+#### api/src/lib/chat/responses.ts
+
+```ts file="api/src/lib/chat/responses.ts"
+import type { ChatResponse } from 'types/shared-schema-types'
+
+import { Repeater } from '@redwoodjs/realtime'
+
 import { logger } from 'src/lib/logger'
 
 const DEFAULT_DELAY_SECONDS = 200
 
-const streamCompletion = (
+const simulateChatResponseStream = (
   prompt = '',
   messages: string[],
   delay: number = DEFAULT_DELAY_SECONDS,
   initialDelay = 0
 ) => {
-  return new Repeater<ChatCompletion>(async (push, stop) => {
+  return new Repeater<ChatResponse>(async (push, stop) => {
     await new Promise((resolve) => setTimeout(resolve, initialDelay))
     for (const message of messages) {
       logger.debug({ message, prompt }, 'debug mode message')
-      await push({ id: '1', threadId: '2', message, prompt })
+      await push({ id: '1', message, prompt })
       logger.debug(`Delaying for ${delay}ms`)
       await new Promise((resolve) => setTimeout(resolve, delay))
       logger.debug('Delay complete')
@@ -499,10 +575,10 @@ const streamCompletion = (
   })
 }
 
-export const streamDebugChatCompletion = (prompt: string) => {
+export const debugChatResponse = (prompt: string) => {
   logger.debug({ prompt }, 'debug mode prompt')
 
-  return streamCompletion(
+  return simulateChatResponseStream(
     prompt,
     ['Hello ', 'world!', '\n', 'This is ', 'a debug ', 'session'],
     DEFAULT_DELAY_SECONDS,
@@ -510,27 +586,19 @@ export const streamDebugChatCompletion = (prompt: string) => {
   )
 }
 
-export const streamEmptyPromptCompletion = (prompt: string) => {
+export const emptyPromptChatResponse = (prompt: string) => {
   logger.warn('prompt is empty')
   const messages = ['Did you ', 'mean to ask ', 'something?']
-  return streamCompletion(prompt, messages)
+  return simulateChatResponseStream(prompt, messages)
 }
 
-export const streamErrorCompletion = (prompt: string) => {
+export const errorChatResponse = (prompt: string) => {
   logger.error('error')
-  return streamCompletion(prompt, ['Oops ', 'something went ', 'wrong!'])
-}
-
-```
-
-#### api/src/lib/chatCompletions/types.ts
-
-```ts file="api/src/lib/chatCompletions/types.ts"
-export type ChatCompletion = {
-  id: string
-  threadId: string
-  message: string
-  prompt: string
+  return simulateChatResponseStream(prompt, [
+    'Oops ',
+    'something went ',
+    'wrong!',
+  ])
 }
 
 ```
@@ -744,7 +812,7 @@ const uploadDocument = async (signedUrl, filePath) => {
 #### api/src/lib/langbase/langbase.ts
 
 ```ts file="api/src/lib/langbase/langbase.ts"
-import { OpenAIStream } from 'ai'
+import { Pipe } from 'langbase'
 
 export const LANGBASE_MEMORY_DOCUMENTS_ENDPOINT =
   process.env.LANGBASE_API_URL ||
@@ -754,34 +822,21 @@ export const LANGBASE_API_KEY = process.env.LANGBASE_API_KEY
 
 export const LANGBASE_CHAT_ENDPOINT = 'https://api.langbase.com/beta/chat'
 
-export const streamChatCompletion = async ({
-  prompt,
-  codebase,
-}: {
-  prompt: string
-  codebase: string
-}) => {
-  const data = {
-    messages: [{ role: 'user', content: prompt }],
-    variables: [{ name: 'CODEBASE', value: codebase }],
-  }
+export const pipe = new Pipe({
+  // Make sure you have a .env file with any pipe you wanna use.
+  // As a demo we're using a pipe that has less wordy responses.
+  apiKey: process.env.LANGBASE_PIPE_API_KEY,
+})
 
-  const response = await fetch(LANGBASE_CHAT_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${LANGBASE_API_KEY}`,
-    },
-    body: JSON.stringify(data),
+export const stream = (prompt: string) =>
+  pipe.streamText({
+    messages: [
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ],
   })
-
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`)
-  }
-
-  const stream = OpenAIStream(response)
-  return new Response(stream)
-}
 
 ```
 
@@ -790,10 +845,78 @@ export const streamChatCompletion = async ({
 ```ts file="api/src/lib/openAI/openAI.ts"
 import OpenAI from 'openai'
 
+// Uses standard OpenAI API
 export const openAIClient = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+})
+
+// Uses Unkey semantic cache gateway to cache responses from OpenAI
+// https://unkey.io/docs/semantic-cache
+// using the baseURL: https://auxiliary-solid-state-tennessine-4901.llm.unkey.io
+export const openAIClientWithUnkeyCache = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   baseURL: 'https://auxiliary-solid-state-tennessine-4901.llm.unkey.io',
 })
+
+import { readCodebaseFile } from 'src/lib/codebaseGenerator/codebase'
+
+export const stream = (prompt: string) =>
+  openAIClient.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      {
+        role: 'system',
+        content:
+          "You're a helpful AI assistant that is an expert in web development and developer tools and technologies including Prisma, GraphQL, SQL, React, Javascript, Typescript and RedwoodJS. Be concise in your answers. Respond in markdown.",
+      },
+      {
+        role: 'user',
+        content: `Use the following RedwoodJS application codebase to answer questions:
+
+     ${readCodebaseFile()}`,
+      },
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ],
+    stream: true as const,
+    // This mimics Langbase's "Precise" setting
+    max_tokens: 1000,
+    frequency_penalty: 0.5,
+    presence_penalty: 0.5,
+    temperature: 0.2,
+    top_p: 0.75,
+  })
+
+export const streamWithUnkeyCache = (prompt: string) =>
+  openAIClientWithUnkeyCache.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      {
+        role: 'system',
+        content:
+          "You're a helpful AI assistant that is an expert in web development and developer tools and technologies including Prisma, GraphQL, SQL, React, Javascript, Typescript and RedwoodJS. Be concise in your answers. Respond in markdown.",
+      },
+      {
+        role: 'user',
+        content: `Use the following RedwoodJS application codebase to answer questions:
+
+       ${readCodebaseFile()}`,
+      },
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ],
+    stream: true as const,
+    // This mimics Langbase's "Precise" setting
+    max_tokens: 1000,
+    frequency_penalty: 0.5,
+    presence_penalty: 0.5,
+    temperature: 0.2,
+    top_p: 0.75,
+  })
 
 ```
 
@@ -848,26 +971,29 @@ export const schema = gql`
 
 ```
 
-#### api/src/graphql/chatCompletion.sdl.ts
+#### api/src/graphql/chat.sdl.ts
 
-```ts file="api/src/graphql/chatCompletion.sdl.ts"
+```ts file="api/src/graphql/chat.sdl.ts"
 export const schema = gql`
-  type ChatCompletion {
+  type ChatResponse {
     id: ID!
-    threadId: ID!
     prompt: String!
     message: String!
   }
 
   type Query {
-    chatCompletions(threadId: ID!): [ChatCompletion!]! @skipAuth
-    createChatCompletion(input: CreateChatCompletionInput!): [ChatCompletion!]!
-      @skipAuth
+    chat(input: ChatInput!): [ChatResponse!]! @skipAuth
   }
 
-  input CreateChatCompletionInput {
+  enum ChatProvider {
+    OPENAI
+    OPENAI_WITH_UNKEY_CACHE
+    LANGBASE
+  }
+
+  input ChatInput {
     prompt: String!
-    stream: Boolean = true
+    provider: ChatProvider = OPENAI
     debug: Boolean = false
   }
 `
@@ -1028,26 +1154,29 @@ export const schema = gql`
 
 ```
 
-#### api/src/graphql/chatCompletion.sdl.ts
+#### api/src/graphql/chat.sdl.ts
 
-```ts file="api/src/graphql/chatCompletion.sdl.ts"
+```ts file="api/src/graphql/chat.sdl.ts"
 export const schema = gql`
-  type ChatCompletion {
+  type ChatResponse {
     id: ID!
-    threadId: ID!
     prompt: String!
     message: String!
   }
 
   type Query {
-    chatCompletions(threadId: ID!): [ChatCompletion!]! @skipAuth
-    createChatCompletion(input: CreateChatCompletionInput!): [ChatCompletion!]!
-      @skipAuth
+    chat(input: ChatInput!): [ChatResponse!]! @skipAuth
   }
 
-  input CreateChatCompletionInput {
+  enum ChatProvider {
+    OPENAI
+    OPENAI_WITH_UNKEY_CACHE
+    LANGBASE
+  }
+
+  input ChatInput {
     prompt: String!
-    stream: Boolean = true
+    provider: ChatProvider = OPENAI
     debug: Boolean = false
   }
 `
@@ -1281,119 +1410,53 @@ export const Auction = {
 
 ```
 
-#### api/src/services/chatCompletions/chatCompletions.ts
+#### api/src/services/chat/chat.ts
 
-```ts file="api/src/services/chatCompletions/chatCompletions.ts"
-import { Repeater } from '@redwoodjs/realtime'
+```ts file="api/src/services/chat/chat.ts"
+import { ChatResponse } from 'types/shared-schema-types'
 
-import {
-  streamEmptyPromptCompletion,
-  streamDebugChatCompletion,
-  streamErrorCompletion,
-} from 'src/lib/chatCompletions/helpers'
-import type { ChatCompletion } from 'src/lib/chatCompletions/types'
-import { readCodebaseFile } from 'src/lib/codebaseGenerator/codebase'
+import { ChatRepeater } from 'src/lib/chat/ChatRepeater'
+import { stream as langbaseStream } from 'src/lib/langbase/langbase'
 import { logger } from 'src/lib/logger'
-import { openAIClient } from 'src/lib/openAI/openAI'
+import { stream as openAIStream } from 'src/lib/openAI/openAI'
+import { streamWithUnkeyCache as openAIStreamWithUnkeyCache } from 'src/lib/openAI/openAI'
+interface ChatResponseFunction {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (part: any, content: string, prompt: string): ChatResponse
+}
 
-export const createChatCompletion = async ({ input }) => {
-  const { prompt, debug, _stream } = input
+const buildChatResponseFunction: ChatResponseFunction = (
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  part: any,
+  content: string,
+  prompt: string
+): ChatResponse => {
+  return {
+    id: part.id,
+    message: content,
+    prompt,
+  }
+}
+
+export const chat = async ({ input }) => {
+  const { prompt, debug, provider } = input
 
   logger.debug('prompt', prompt)
 
-  if (!prompt || prompt.trim() === '') {
-    return streamEmptyPromptCompletion(prompt)
-  }
+  const promptFunction =
+    provider === 'OPENAI'
+      ? openAIStream
+      : provider === 'OPENAI_WITH_UNKEY_CACHE'
+      ? openAIStreamWithUnkeyCache
+      : langbaseStream
 
-  if (debug) {
-    return streamDebugChatCompletion(prompt)
-  }
-
-  // For now we'll use OpenAI but
-  // We'll switch to Langbase after their launch today
-  return new Repeater<ChatCompletion>(async (push, stop) => {
-    const publish = async () => {
-      try {
-        logger.debug('OpenAI stream requested ...')
-
-        const stream = await openAIClient.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content:
-                "You're a helpful AI assistant that is an expert in web development and developer tools and technologies including Prisma, GraphQL, SQL, React, Javascript, Typescript and RedwoodJS. Be concise in your answers. Respond in markdown.",
-            },
-            {
-              role: 'user',
-              content: `Use the following RedwoodJS application codebase to answer questions:
-
-             ${readCodebaseFile()}`,
-            },
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-          stream: true as const,
-          // This mimics Langbase's "Precise" setting
-          max_tokens: 1000,
-          frequency_penalty: 0.5,
-          presence_penalty: 0.5,
-          temperature: 0.2,
-          top_p: 0.75,
-        })
-        logger.debug('OpenAI stream received started ...')
-
-        for await (const part of stream) {
-          const { content } = part.choices[0].delta
-
-          if (content) {
-            logger.debug({ content }, 'OpenAI stream received ...')
-
-            const chatCompletion = {
-              id: part.id,
-              threadId: part.id,
-              message: `${content}`,
-              prompt,
-            }
-            console.debug(chatCompletion, 'Publish chat chunk')
-            push(chatCompletion)
-          }
-        }
-
-        logger.debug('OpenAI stream received ended.')
-        stop()
-      } catch (error) {
-        logger.error(error, 'Error in OpenAI stream:')
-        return streamErrorCompletion(prompt)
-      }
-    }
-
-    publish()
-
-    await stop.then(() => {
-      logger.debug('stream done')
-    })
+  return ChatRepeater({
+    promptFunction,
+    prompt,
+    debug,
+    buildChatResponseFunction,
   })
 }
-
-// async function main() {
-//   const runner = await openai.beta.chat.completions
-//     .stream({
-//       model: 'gpt-3.5-turbo',
-//       messages: [{ role: 'user', content: 'Say this is a test' }],
-//     })
-//     .on('message', (msg) => console.log(msg))
-//     .on('content', (diff) => process.stdout.write(diff));
-
-//   for await (const chunk of runner) {
-//     console.log('chunk', chunk);
-//   }
-
-//   const result = await runner.finalChatCompletion();
-//   console.log(result);
-// }
 
 ```
 
@@ -2694,6 +2757,117 @@ export default MessageList
 
 ```
 
+#### web/src/components/RedwoodCopilot/ChatForm.tsx
+
+```tsx file="web/src/components/RedwoodCopilot/ChatForm.tsx"
+import React from 'react'
+
+import avatar from './avatars/rw-copilot-avatar.png'
+
+interface ChatFormProps {
+  prompt: string
+  setPrompt: (prompt: string) => void
+  provider: string
+  setProvider: (provider: string) => void
+  handleSend: () => void
+  fetching: boolean
+}
+
+const ChatForm: React.FC<ChatFormProps> = ({
+  prompt,
+  setPrompt,
+  provider,
+  setProvider,
+  handleSend,
+  fetching,
+}) => {
+  return (
+    <div className="sticky bottom-0 mb-0 w-full bg-white px-4 pt-8">
+      <div className="flex gap-2">
+        <input
+          type="text"
+          name="prompt"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              handleSend()
+            }
+          }}
+          placeholder="Ask me anything about your RedwoodJS project"
+          required
+          disabled={fetching}
+          className="flex-grow rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500"
+        />
+
+        <select
+          value={provider}
+          onChange={(e) => setProvider(e.target.value)}
+          className="rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+        >
+          <option value="OPENAI">OpenAI</option>
+          <option value="OPENAI_WITH_UNKEY_CACHE">OpenAI Cached</option>
+          <option value="LANGBASE">Langbase</option>
+        </select>
+
+        <button
+          type="button"
+          className="inline-flex items-center gap-x-1.5 rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600"
+          onClick={handleSend}
+          disabled={!prompt.trim() || fetching}
+        >
+          <img
+            src={avatar}
+            alt="Redwood Copilot"
+            aria-hidden="true"
+            className=" -ml-0.5 h-10 w-10 rounded-full bg-green-200 p-1 ring-2 ring-green-300"
+          />
+          Ask!
+        </button>
+      </div>
+      <div className="mt-2 text-center text-sm text-gray-500">
+        Redwood Copilot might make mistakes. Don&apos;t leaf just yet.
+      </div>
+    </div>
+  )
+}
+
+export default ChatForm
+
+```
+
+#### web/src/components/RedwoodCopilot/ChatResponseSection.tsx
+
+```tsx file="web/src/components/RedwoodCopilot/ChatResponseSection.tsx"
+import Markdown from 'src/components/Markdown/Markdown'
+
+import avatar from './avatars/rw-copilot-avatar.png'
+
+const ChatResponseSection = ({ data }) => {
+  return (
+    <div className="text-md rounded-md border border-solid border-green-300 bg-green-200 p-4 text-gray-900">
+      <div className="mb-4 flex justify-center">
+        <img
+          src={avatar}
+          alt="Redwood Copilot"
+          aria-hidden="true"
+          className="h-10 w-10 rounded-full bg-green-100 p-1 ring-2 ring-green-400"
+        />
+      </div>
+      <div className="text-md rounded-md border border-solid border-green-300 bg-green-100 p-4 text-gray-900">
+        <Markdown>
+          {data.chat.map((response) => response.message).join('')}
+        </Markdown>
+      </div>
+    </div>
+  )
+}
+
+export default ChatResponseSection
+
+```
+
 #### web/src/components/RedwoodCopilot/Drawer.tsx
 
 ```tsx file="web/src/components/RedwoodCopilot/Drawer.tsx"
@@ -2775,50 +2949,9 @@ export default RedwoodCopilotDrawer
 
 ```
 
-#### web/src/components/RedwoodCopilot/RedwoodCopilot.tsx
+#### web/src/components/RedwoodCopilot/ExamplePromptCards.tsx
 
-```tsx file="web/src/components/RedwoodCopilot/RedwoodCopilot.tsx"
-import { useState } from 'react'
-
-import Markdown from 'src/components/Markdown/Markdown'
-import { StreamProvider, g, useQuery } from 'src/StreamProvider'
-
-import avatar from './avatars/rw-copilot-avatar.png'
-import avatarThinking from './avatars/rw-copilot-thinking.png'
-import redwoodDeveloperIcon from './avatars/rw-developer.png'
-
-const ChatCompletionQuery = g(`
-  query ChatCompletionQuery($input: CreateChatCompletionInput!) {
-    createChatCompletion(input: $input) @stream {
-      id
-      message
-      threadId
-      prompt
-    }
-  }`)
-
-const debug = false
-const stream = true
-
-const thinkingStatements = [
-  'Photosynthesizing ideas...',
-  'Growing neural branches...',
-  'Calculating trunk circumference...',
-  'Analyzing Redwood DNA...',
-  'Consulting with wise old trees...',
-  'Uploading forest knowledge...',
-  'Debugging squirrel queries...',
-  'Optimizing pinecone algorithms...',
-  'Branching out for solutions...',
-  'Rooting through data forests...',
-]
-
-const getRandomThinkingStatement = () => {
-  return thinkingStatements[
-    Math.floor(Math.random() * thinkingStatements.length)
-  ]
-}
-
+```tsx file="web/src/components/RedwoodCopilot/ExamplePromptCards.tsx"
 const examplePrompts = [
   {
     title: 'Summary',
@@ -2827,7 +2960,7 @@ const examplePrompts = [
   {
     title: 'GraphQL Streaming',
     prompt:
-      'How does GraphQL streaming work with the @stream directive for chat completions?',
+      'How does GraphQL streaming work with the @stream directive for chat queries?',
   },
   {
     title: 'Chatbot',
@@ -2887,20 +3020,78 @@ const ExamplePromptCards = ({ setPrompt }) => {
   )
 }
 
+export default ExamplePromptCards
+
+```
+
+#### web/src/components/RedwoodCopilot/PromptSection.tsx
+
+```tsx file="web/src/components/RedwoodCopilot/PromptSection.tsx"
+import redwoodDeveloperIcon from './avatars/rw-developer.png'
+
+const PromptSection = ({ prompt }: { prompt: string }) => {
+  return (
+    <div className="text-md rounded-md border border-solid border-gray-300 bg-gray-200 p-4 text-gray-900">
+      <div className="mb-4 flex justify-center">
+        <img
+          src={redwoodDeveloperIcon}
+          alt="Redwood Developer"
+          aria-hidden="true"
+          className="h-10 w-10 rounded-full bg-green-100 p-1 ring-2 ring-gray-500"
+        />
+      </div>
+      <div className="text-md rounded-md border border-solid border-gray-300 bg-gray-100 p-4 text-gray-900">
+        {prompt}
+      </div>
+    </div>
+  )
+}
+
+export default PromptSection
+
+```
+
+#### web/src/components/RedwoodCopilot/RedwoodCopilot.tsx
+
+```tsx file="web/src/components/RedwoodCopilot/RedwoodCopilot.tsx"
+import { useState } from 'react'
+
+import { StreamProvider, g, useQuery } from 'src/StreamProvider'
+
+import ChatForm from './ChatForm'
+import ChatResponseSection from './ChatResponseSection'
+import ExamplePromptCards from './ExamplePromptCards'
+import PromptSection from './PromptSection'
+import { ThinkingStatus, getRandomThinkingStatus } from './ThinkingStatus'
+
+const ChatQuery = g(`
+  query ChatQuery($input: ChatInput!) {
+    chat(input: $input) @stream {
+      id
+      message
+      prompt
+    }
+  }`)
+
+const debug = false
+
 const RedwoodCopilotComponent = () => {
   const [prompt, setPrompt] = useState('')
-  const [thinkingStatement, setThinkingStatement] = useState('')
+  const [thinkingStatus, setThinkingStatus] = useState('')
+  const [provider, setProvider] = useState('OPENAI')
 
   const [{ data, fetching, error }, executeQuery] = useQuery({
-    query: ChatCompletionQuery,
-    variables: { input: { prompt, debug, stream } },
+    query: ChatQuery,
+    variables: {
+      input: { prompt, debug, provider },
+    },
     pause: true,
   })
 
   const handleSend = () => {
     const promptValue = prompt.trim()
     if (promptValue) {
-      setThinkingStatement(getRandomThinkingStatement())
+      setThinkingStatus(getRandomThinkingStatus())
       executeQuery()
     }
   }
@@ -2911,96 +3102,26 @@ const RedwoodCopilotComponent = () => {
       <div className="flex-grow overflow-auto px-4 ">
         <ExamplePromptCards setPrompt={setPrompt} />
         <div className="space-y-2">
-          {fetching ||
-            (data && data.createChatCompletion.length === 0 && (
-              <div className="group block flex-shrink-0">
-                <div className="flex animate-pulse items-center">
-                  <div>
-                    <img
-                      src={avatarThinking}
-                      alt="Redwood Copilot is thinking"
-                      className="h-24"
-                    />
-                  </div>
-                  <div className="ml-3 text-green-600">{thinkingStatement}</div>
-                </div>
-              </div>
-            ))}
-          {data && data.createChatCompletion.length > 0 && (
+          {(fetching || (data && data.chat.length === 0)) && (
+            <ThinkingStatus thinkingStatus={thinkingStatus} />
+          )}
+          {data && data.chat.length > 0 && (
             <div className="space-y-4">
-              <div className="text-md rounded-md border border-solid border-gray-300 bg-gray-200 p-4 text-gray-900">
-                <div className="mb-4 flex justify-center">
-                  <img
-                    src={redwoodDeveloperIcon}
-                    alt="Redwood Developer"
-                    aria-hidden="true"
-                    className="h-10 w-10 rounded-full bg-green-100 p-1 ring-2 ring-gray-500"
-                  />
-                </div>
-                <div className="text-md rounded-md border border-solid border-gray-300 bg-gray-100 p-4 text-gray-900">
-                  {data.createChatCompletion[0].prompt}
-                </div>
-              </div>
-              <div className="text-md rounded-md border border-solid border-green-300 bg-green-200 p-4 text-gray-900">
-                <div className="mb-4 flex justify-center">
-                  <img
-                    src={avatar}
-                    alt="Redwood Copilot"
-                    aria-hidden="true"
-                    className="h-10 w-10 rounded-full bg-green-100 p-1 ring-2 ring-green-400"
-                  />
-                </div>
-                <div className="text-md rounded-md border border-solid border-green-300 bg-green-100 p-4 text-gray-900">
-                  <Markdown>
-                    {data.createChatCompletion
-                      .map((completion) => completion.message)
-                      .join('')}
-                  </Markdown>
-                </div>
-              </div>
+              <PromptSection prompt={data.chat[0].prompt} />
+              <ChatResponseSection data={data} />
             </div>
           )}
         </div>
       </div>
 
-      <div className="sticky bottom-0 mb-0 w-full bg-white px-4 pt-8">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            name="prompt"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                handleSend()
-              }
-            }}
-            placeholder="Ask me anything about your RedwoodJS project"
-            required
-            disabled={fetching}
-            className="flex-grow rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500"
-          />
-
-          <button
-            type="button"
-            className="inline-flex items-center gap-x-1.5 rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600"
-            onClick={handleSend}
-            disabled={!prompt.trim() || fetching}
-          >
-            <img
-              src={avatar}
-              alt="Redwood Copilot"
-              aria-hidden="true"
-              className=" -ml-0.5 h-10 w-10 rounded-full bg-green-200 p-1 ring-2 ring-green-300"
-            />
-            Ask!
-          </button>
-        </div>
-        <div className="mt-2 text-center text-sm text-gray-500">
-          Redwood Copilot might make mistakes. Don&apos;t leaf just yet.
-        </div>
-      </div>
+      <ChatForm
+        prompt={prompt}
+        setPrompt={setPrompt}
+        provider={provider}
+        setProvider={setProvider}
+        handleSend={handleSend}
+        fetching={fetching}
+      />
     </main>
   )
 }
@@ -3013,6 +3134,53 @@ const RedwoodCopilot = () => (
 )
 
 export default RedwoodCopilot
+
+```
+
+#### web/src/components/RedwoodCopilot/ThinkingStatus.tsx
+
+```tsx file="web/src/components/RedwoodCopilot/ThinkingStatus.tsx"
+import React from 'react'
+
+import avatarThinking from './avatars/rw-copilot-thinking.png'
+
+interface ThinkingStatusProps {
+  thinkingStatus: string
+}
+
+const thinkingStatuses = [
+  'Photosynthesizing ideas...',
+  'Growing neural branches...',
+  'Calculating trunk circumference...',
+  'Analyzing Redwood DNA...',
+  'Consulting with wise old trees...',
+  'Uploading forest knowledge...',
+  'Debugging squirrel queries...',
+  'Optimizing pinecone algorithms...',
+  'Branching out for solutions...',
+  'Rooting through data forests...',
+]
+
+export const getRandomThinkingStatus = () => {
+  return thinkingStatuses[Math.floor(Math.random() * thinkingStatuses.length)]
+}
+
+export const ThinkingStatus: React.FC<ThinkingStatusProps> = ({
+  thinkingStatus,
+}) => (
+  <div className="group block flex-shrink-0">
+    <div className="flex animate-pulse items-center">
+      <div>
+        <img
+          src={avatarThinking}
+          alt="Redwood Copilot is thinking"
+          className="h-24"
+        />
+      </div>
+      <div className="ml-3 text-green-600">{thinkingStatus}</div>
+    </div>
+  </div>
+)
 
 ```
 
