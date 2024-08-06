@@ -33,7 +33,11 @@ Then create managed semantic memory (RAG) so your AI can talk to your data
 
 ### Langbase Demo
 
-The Langbase powered chat uses a [Pipe](https://langbase.com/docs/pipe/overview) with the project codebase attached. This codebase is uploaded to [memory](https://langbase.com/docs/memory/overview) via script or can be initiated by a GraphQL mutation.
+The Langbase powered chat uses a [Pipe](https://langbase.com/docs/pipe/overview) with the project codebase attached as memory.
+
+This codebase is uploaded to [memory](https://langbase.com/docs/memory/overview) via script or can be initiated by a GraphQL mutation.
+
+We can also upload all the RedwoodJS documentation to Langbase memory so one can chat with your code as well as docs.
 
 The pipe defines the:
 
@@ -72,16 +76,23 @@ OPENAI_API_KEY=
 
 LANGBASE_PIPE_API_KEY=
 LANGBASE_API_KEY=
-LANGBASE_MEMORY_NAME=
+LANGBASE_MEMORY_NAME_CODEBASE=
+LANGBASE_MEMORY_NAME_DOCS=
 LANGBASE_OWNER_LOGIN=
 
 UNKEY_SEMANTIC_CACHE_GATEWAY=
+
+REDWOOD_DOCS_PATH="/your/path/to/redwoodjs/redwood/docs/docs"
+
 ```
 
 ## Scripts
 
 * `yarn rw exec gen-codebase` - generates codebase file `CODEBASE_TOC.md`
-* `yarn rw exec gen-codebase --upload=true` uploads to Langbase
+* `yarn rw exec gen-codebase --upload=true` uploads to Langbase; needs `LANGBASE_MEMORY_NAME_CODEBASE`
+* `yarn rw exec gen-docs` fetches docs from a local RedwoodJS folder uploads docs to Langbase; keeps hash to upload only docs changed since last upload. needs `LANGBASE_MEMORY_NAME_DOCS`
+
+
 
 ## Future
 
