@@ -1,4 +1,4 @@
-import { OpenAIStream } from 'ai'
+import { Pipe } from 'langbase'
 
 export const LANGBASE_MEMORY_DOCUMENTS_ENDPOINT =
   process.env.LANGBASE_API_URL ||
@@ -8,31 +8,18 @@ export const LANGBASE_API_KEY = process.env.LANGBASE_API_KEY
 
 export const LANGBASE_CHAT_ENDPOINT = 'https://api.langbase.com/beta/chat'
 
-export const streamChatCompletion = async ({
-  prompt,
-  codebase,
-}: {
-  prompt: string
-  codebase: string
-}) => {
-  const data = {
-    messages: [{ role: 'user', content: prompt }],
-    variables: [{ name: 'CODEBASE', value: codebase }],
-  }
+export const pipe = new Pipe({
+  // Make sure you have a .env file with any pipe you wanna use.
+  // As a demo we're using a pipe that has less wordy responses.
+  apiKey: process.env.LANGBASE_PIPE_API_KEY,
+})
 
-  const response = await fetch(LANGBASE_CHAT_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${LANGBASE_API_KEY}`,
-    },
-    body: JSON.stringify(data),
+export const stream = (prompt: string) =>
+  pipe.streamText({
+    messages: [
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ],
   })
-
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`)
-  }
-
-  const stream = OpenAIStream(response)
-  return new Response(stream)
-}

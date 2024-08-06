@@ -17,7 +17,7 @@ const ChatCompletionQuery = g(`
     }
   }`)
 
-const debug = true
+const debug = false
 const stream = true
 
 const thinkingStatements = [

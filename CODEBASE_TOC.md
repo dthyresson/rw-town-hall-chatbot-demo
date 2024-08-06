@@ -646,7 +646,7 @@ const addFilesToTOC = (sectionFiles: string[], toc: string[]) => {
   const paths = getPaths()
   sectionFiles.forEach((file) => {
     const relativePath = file.replace(paths.base + '/', '')
-    logger.debug(`Adding ${relativePath} to TOC`)
+    // logger.debug(`Adding ${relativePath} to TOC`)
     toc.push(`#### ${relativePath}\n`)
     const content = fs.readFileSync(file, 'utf-8')
     const fileExtension = file.split('.').pop()
@@ -730,6 +730,8 @@ const uploadDocument = async (signedUrl, filePath) => {
       body: file,
     })
 
+    logger.info({ response }, 'Document uploaded to Langbase')
+
     return response
   } catch (error) {
     logger.error({ error }, 'Error uploading document to Langbase')
@@ -742,6 +744,8 @@ const uploadDocument = async (signedUrl, filePath) => {
 #### api/src/lib/langbase/langbase.ts
 
 ```ts file="api/src/lib/langbase/langbase.ts"
+import { OpenAIStream } from 'ai'
+
 export const LANGBASE_MEMORY_DOCUMENTS_ENDPOINT =
   process.env.LANGBASE_API_URL ||
   'https://api.langbase.com/beta/user/memorysets/documents'
@@ -749,6 +753,35 @@ export const LANGBASE_MEMORY_DOCUMENTS_ENDPOINT =
 export const LANGBASE_API_KEY = process.env.LANGBASE_API_KEY
 
 export const LANGBASE_CHAT_ENDPOINT = 'https://api.langbase.com/beta/chat'
+
+export const streamChatCompletion = async ({
+  prompt,
+  codebase,
+}: {
+  prompt: string
+  codebase: string
+}) => {
+  const data = {
+    messages: [{ role: 'user', content: prompt }],
+    variables: [{ name: 'CODEBASE', value: codebase }],
+  }
+
+  const response = await fetch(LANGBASE_CHAT_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${LANGBASE_API_KEY}`,
+    },
+    body: JSON.stringify(data),
+  })
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`)
+  }
+
+  const stream = OpenAIStream(response)
+  return new Response(stream)
+}
 
 ```
 
@@ -759,6 +792,7 @@ import OpenAI from 'openai'
 
 export const openAIClient = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+  baseURL: 'https://auxiliary-solid-state-tennessine-4901.llm.unkey.io',
 })
 
 ```
@@ -1280,6 +1314,8 @@ export const createChatCompletion = async ({ input }) => {
   return new Repeater<ChatCompletion>(async (push, stop) => {
     const publish = async () => {
       try {
+        logger.debug('OpenAI stream requested ...')
+
         const stream = await openAIClient.chat.completions.create({
           model: 'gpt-4o-mini',
           messages: [
@@ -1292,7 +1328,7 @@ export const createChatCompletion = async ({ input }) => {
               role: 'user',
               content: `Use the following RedwoodJS application codebase to answer questions:
 
-            ${readCodebaseFile()}`,
+             ${readCodebaseFile()}`,
             },
             {
               role: 'user',
@@ -1329,7 +1365,7 @@ export const createChatCompletion = async ({ input }) => {
         logger.debug('OpenAI stream received ended.')
         stop()
       } catch (error) {
-        logger.error('Error in OpenAI stream:', error)
+        logger.error(error, 'Error in OpenAI stream:')
         return streamErrorCompletion(prompt)
       }
     }
@@ -1341,6 +1377,23 @@ export const createChatCompletion = async ({ input }) => {
     })
   })
 }
+
+// async function main() {
+//   const runner = await openai.beta.chat.completions
+//     .stream({
+//       model: 'gpt-3.5-turbo',
+//       messages: [{ role: 'user', content: 'Say this is a test' }],
+//     })
+//     .on('message', (msg) => console.log(msg))
+//     .on('content', (diff) => process.stdout.write(diff));
+
+//   for await (const chunk of runner) {
+//     console.log('chunk', chunk);
+//   }
+
+//   const result = await runner.finalChatCompletion();
+//   console.log(result);
+// }
 
 ```
 

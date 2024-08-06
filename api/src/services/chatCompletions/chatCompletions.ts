@@ -6,15 +6,33 @@ import {
   streamErrorCompletion,
 } from 'src/lib/chatCompletions/helpers'
 import type { ChatCompletion } from 'src/lib/chatCompletions/types'
-import { readCodebaseFile } from 'src/lib/codebaseGenerator/codebase'
+import { stream as langbaseStream } from 'src/lib/langbase/langbase'
 import { logger } from 'src/lib/logger'
-import { openAIClient } from 'src/lib/openAI/openAI'
+import { stream as openAIStream } from 'src/lib/openAI/openAI'
 
 export const createChatCompletion = async ({ input }) => {
   const { prompt, debug, _stream } = input
 
   logger.debug('prompt', prompt)
 
+  const promptFunction = _stream ? openAIStream : langbaseStream
+  const buildChatCompletion = (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    part: any,
+    content: string,
+    prompt: string
+  ): ChatCompletion => {
+    return {
+      id: part.id,
+      threadId: part.id,
+      message: content,
+      prompt,
+    }
+  }
+  return chat({ promptFunction, prompt, debug, buildChatCompletion })
+}
+
+const chat = async ({ promptFunction, prompt, debug, buildChatCompletion }) => {
   if (!prompt || prompt.trim() === '') {
     return streamEmptyPromptCompletion(prompt)
   }
@@ -22,70 +40,41 @@ export const createChatCompletion = async ({ input }) => {
   if (debug) {
     return streamDebugChatCompletion(prompt)
   }
+  return new Repeater<ReturnType<typeof buildChatCompletion>>(
+    async (push, stop) => {
+      const publish = async () => {
+        try {
+          logger.debug('>> stream requested ...')
 
-  // For now we'll use OpenAI but
-  // We'll switch to Langbase after their launch today
-  return new Repeater<ChatCompletion>(async (push, stop) => {
-    const publish = async () => {
-      try {
-        const stream = await openAIClient.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content:
-                "You're a helpful AI assistant that is an expert in web development and developer tools and technologies including Prisma, GraphQL, SQL, React, Javascript, Typescript and RedwoodJS. Be concise in your answers. Respond in markdown.",
-            },
-            {
-              role: 'user',
-              content: `Use the following RedwoodJS application codebase to answer questions:
+          const stream = await promptFunction(prompt)
 
-            ${readCodebaseFile()}`,
-            },
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-          stream: true as const,
-          // This mimics Langbase's "Precise" setting
-          max_tokens: 1000,
-          frequency_penalty: 0.5,
-          presence_penalty: 0.5,
-          temperature: 0.2,
-          top_p: 0.75,
-        })
-        logger.debug('OpenAI stream received started ...')
+          logger.debug('>> stream received started ...')
 
-        for await (const part of stream) {
-          const { content } = part.choices[0].delta
+          for await (const part of stream) {
+            const { content } = part.choices[0].delta
 
-          if (content) {
-            logger.debug({ content }, 'OpenAI stream received ...')
-
-            const chatCompletion = {
-              id: part.id,
-              threadId: part.id,
-              message: `${content}`,
-              prompt,
+            if (content) {
+              logger.debug({ content }, '>> stream received ...')
+              const chatCompletion = buildChatCompletion(part, content, prompt)
+              console.debug(chatCompletion, 'Publish chat chunk')
+              push(chatCompletion)
             }
-            console.debug(chatCompletion, 'Publish chat chunk')
-            push(chatCompletion)
           }
+
+          logger.debug('>> stream received ended.')
+
+          stop()
+        } catch (error) {
+          logger.error(error, 'Error in >> stream:')
+          return streamErrorCompletion(prompt)
         }
-
-        logger.debug('OpenAI stream received ended.')
-        stop()
-      } catch (error) {
-        logger.error('Error in OpenAI stream:', error)
-        return streamErrorCompletion(prompt)
       }
+
+      publish()
+
+      await stop.then(() => {
+        logger.debug('stream done')
+      })
     }
-
-    publish()
-
-    await stop.then(() => {
-      logger.debug('stream done')
-    })
-  })
+  )
 }

@@ -85,7 +85,7 @@ const addFilesToTOC = (sectionFiles: string[], toc: string[]) => {
   const paths = getPaths()
   sectionFiles.forEach((file) => {
     const relativePath = file.replace(paths.base + '/', '')
-    logger.debug(`Adding ${relativePath} to TOC`)
+    // logger.debug(`Adding ${relativePath} to TOC`)
     toc.push(`#### ${relativePath}\n`)
     const content = fs.readFileSync(file, 'utf-8')
     const fileExtension = file.split('.').pop()
@@ -168,6 +168,8 @@ const uploadDocument = async (signedUrl, filePath) => {
       },
       body: file,
     })
+
+    logger.info({ response }, 'Document uploaded to Langbase')
 
     return response
   } catch (error) {
