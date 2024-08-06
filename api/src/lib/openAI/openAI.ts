@@ -10,7 +10,7 @@ export const openAIClient = new OpenAI({
 // using the baseURL: https://auxiliary-solid-state-tennessine-4901.llm.unkey.io
 export const openAIClientWithUnkeyCache = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-  baseURL: 'https://auxiliary-solid-state-tennessine-4901.llm.unkey.io',
+  baseURL: process.env.UNKEY_SEMANTIC_CACHE_GATEWAY,
 })
 
 import { readCodebaseFile } from 'src/lib/codebaseGenerator/codebase'

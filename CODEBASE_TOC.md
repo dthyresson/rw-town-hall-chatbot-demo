@@ -10,19 +10,66 @@
 
 This project demonstrates how to use RedwoodJS, OpenAI and GraphQL Streaming to build a Chatbot that can answer questions about your code.
 
-###
-Codebase Generator
+### Codebase Generator
 First we generate a file with your entire RedwoodJS project.
 
-### OpenAI
-We send that codebase to OpenAI and ask questions about it using our Redwood Copilot chatbot.
+### AI
+We provide that codebase to OpenAI, OpenAI with Unkey Semantic Cache, or Langbase and ask questions about it using our Redwood Copilot chatbot.
 
-###GraphQL Streaming
+### GraphQL Streaming
 Redwood Realtime with GraphQL Streaming will stream the response from OpenAI to the client.
 
-## Todo
+# AI Chat
 
-* Use Langbase instead of OpenAI directly
+We demo:
+
+* [OpenAI](https://openai.com)
+* OpenAI with [Unkey](https://www.unkey.com) [Semantic Cache](https://www.unkey.com/docs/semantic-cache/introduction)
+* [Langbase](https://langbase.com/)
+
+Each use the `gpt-4o-mini` model.
+
+## About Langbase
+
+⌘ Langbase helps developers ship composable hyper-personalized AI apps and features.
+
+Start by building AI assistants Pipes
+Then create managed semantic memory (RAG) so your AI can talk to your data
+
+⌘ Langbase is the composable infrastructure and developer experience to build, collaborate, and deploy any AI apps/features. Our mission is to make AI accessible to everyone, any developer not just AI/ML experts. We are the only composable AI infrastructure.
+
+### Langbase Demo
+
+The Langbase powered chat uses a [Pipe](https://langbase.com/docs/pipe/overview) with the project codebase attached. This codebase is uploaded to [memory](https://langbase.com/docs/memory/overview) via script or can be initiated by a GraphQL mutation.
+
+The pipe defines the:
+
+* prompt
+* model
+* settings
+* RAG instructions
+
+By using a [pipe](https://langbase.com/docs/pipe/overview), the model used and prompt can be adjusted without modifying the request.
+
+## About Unkey Sematic Cache
+
+A simple way to improve performance when using LLMs is to cache responses using the user query as the key. This has the disadvantage of only allowing for caching of exact matches.
+
+A more useful form of caching is [semantic caching](https://www.unkey.com/docs/semantic-cache/introduction): caching based on the embedding of the query, and returning a response if the query passes a threshold of semantic similarity. This allows for a higher cache hit rate, meaning faster responses for your users and reduced OpenAI bills.
+
+### Semantic Cache Demo
+
+To enable semantic caching with Unkey we:
+
+* Set up a new gateway in the dashboard
+* Created a second OpenAI client and replaced the baseURL with the new gateway URL
+
+Subsequent responses will be cached. You can monitor the cache via our dashboard.
+
+Unkey’s semantic cache supports streaming, making it useful for web-based chat applications where you want to display results in real-time.
+
+## Future
+
 * Use RAG with RedwoodJS docs + AI assistant prompt to answer more questions.
 
 ```
@@ -2157,17 +2204,17 @@ const headings = [
     icon: CodeBracketIcon,
   },
   {
-    name: 'OpenAI',
+    name: 'AI Chat',
     description:
-      'We send that codebase to OpenAI and ask questions about it using our Redwood Copilot chatbot.',
-    path: 'api/src/services/chatCompletions/chatCompletions.ts',
+      'We provide that codebase to OpenAI, OpenAI with Unkey Semantic Cache, or Langbase and ask questions about it using our Redwood Copilot chatbot.',
+    path: 'api/src/services/chat/chat.ts',
     icon: SparklesIcon,
   },
   {
     name: 'GraphQL Streaming',
     description:
       'Redwood Realtime with GraphQL Streaming will stream the response from OpenAI to the client.',
-    path: 'api/src/lib/chatCompletions/helpers.ts',
+    path: 'api/src/lib/chat/ChatRepeater.ts',
 
     icon: BoltIcon,
   },
@@ -2185,10 +2232,10 @@ function HeadingCards() {
             Redwood Copilot Demo
           </p>
           <p className="mt-6 text-lg leading-8 text-gray-600">
-            with OpenAI and GraphQL Streaming
+            with AI Chat and GraphQL Streaming
           </p>
           <p className="mt-6 text-lg leading-8 text-gray-600">
-            This project demonstrates how to use RedwoodJS, OpenAI and GraphQL
+            This project demonstrates how to use RedwoodJS, AI and GraphQL
             Streaming to build a Chatbot that can answer questions about your
             code.
           </p>

@@ -17,17 +17,17 @@ const headings = [
     icon: CodeBracketIcon,
   },
   {
-    name: 'OpenAI',
+    name: 'AI Chat',
     description:
-      'We send that codebase to OpenAI and ask questions about it using our Redwood Copilot chatbot.',
-    path: 'api/src/services/chatCompletions/chatCompletions.ts',
+      'We provide that codebase to OpenAI, OpenAI with Unkey Semantic Cache, or Langbase and ask questions about it using our Redwood Copilot chatbot.',
+    path: 'api/src/services/chat/chat.ts',
     icon: SparklesIcon,
   },
   {
     name: 'GraphQL Streaming',
     description:
       'Redwood Realtime with GraphQL Streaming will stream the response from OpenAI to the client.',
-    path: 'api/src/lib/chatCompletions/helpers.ts',
+    path: 'api/src/lib/chat/ChatRepeater.ts',
 
     icon: BoltIcon,
   },
@@ -45,10 +45,10 @@ function HeadingCards() {
             Redwood Copilot Demo
           </p>
           <p className="mt-6 text-lg leading-8 text-gray-600">
-            with OpenAI and GraphQL Streaming
+            with AI Chat and GraphQL Streaming
           </p>
           <p className="mt-6 text-lg leading-8 text-gray-600">
-            This project demonstrates how to use RedwoodJS, OpenAI and GraphQL
+            This project demonstrates how to use RedwoodJS, AI and GraphQL
             Streaming to build a Chatbot that can answer questions about your
             code.
           </p>
