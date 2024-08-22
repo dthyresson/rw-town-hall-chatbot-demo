@@ -7,10 +7,12 @@
     ]
   },
   "devDependencies": {
-    "@redwoodjs/core": "7.7.3",
-    "@redwoodjs/project-config": "7.7.3",
+    "@prisma/client": "5.18.0",
+    "@redwoodjs/core": "7.7.4",
+    "@redwoodjs/project-config": "7.7.4",
     "@sdl-codegen/node": "1.0.2",
-    "prettier-plugin-tailwindcss": "0.4.1"
+    "prettier-plugin-tailwindcss": "0.4.1",
+    "prisma": "5.18.0"
   },
   "eslintConfig": {
     "extends": "@redwoodjs/eslint-config",

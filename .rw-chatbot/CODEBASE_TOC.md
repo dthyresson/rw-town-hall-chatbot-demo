@@ -100,6 +100,7 @@ REDWOOD_DOCS_PATH="/your/path/to/redwoodjs/redwood/docs/docs"
 * `yarn rw exec gen-docs` fetches docs from a local RedwoodJS folder uploads docs to Langbase; keeps hash to upload only docs changed since last upload. needs `LANGBASE_MEMORY_NAME_DOCS`
 
 
+> Note: All generated files are kept in the `.rw-chatbot` directory at the base of your project
 
 ## Future
 
@@ -144,178 +145,6 @@ REDWOOD_DOCS_PATH="/your/path/to/redwoodjs/redwood/docs/docs"
 
 
 ## API
-
-### GraphQL Schema
-
-#### .redwood/schema.graphql
-
-```graphql file=".redwood/schema.graphql"
-"""
-Instruction for establishing a live connection that is updated once the underlying data changes.
-"""
-directive @live(
-  """Whether the query should be live or not."""
-  if: Boolean = true
-
-  """
-  Propose a desired throttle interval ot the server in order to receive updates to at most once per "throttle" milliseconds. The server must not accept this value.
-  """
-  throttle: Int
-) on QUERY
-
-"""
-Use to check whether or not a user is authenticated and is associated
-with an optional set of roles.
-"""
-directive @requireAuth(roles: [String]) on FIELD_DEFINITION
-
-"""Use to skip authentication checks and allow public access."""
-directive @skipAuth on FIELD_DEFINITION
-
-type Auction {
-  bids: [Bid!]!
-  highestBid: Bid
-  id: ID!
-  title: String!
-}
-
-type Bid {
-  amount: Int!
-}
-
-input BidInput {
-  amount: Int!
-  auctionId: ID!
-}
-
-scalar BigInt
-
-scalar Byte
-
-input ChatInput {
-  debug: Boolean = false
-  prompt: String!
-  provider: ChatProvider = OPENAI
-}
-
-enum ChatProvider {
-  LANGBASE
-  OPENAI
-  OPENAI_WITH_UNKEY_CACHE
-}
-
-type ChatResponse {
-  id: ID!
-  message: String!
-  prompt: String!
-}
-
-input CreatePostInput {
-  author: String!
-  body: String
-  title: String!
-}
-
-scalar Date
-
-scalar DateTime
-
-input GenCodebaseInput {
-  upload: Boolean = false
-}
-
-scalar JSON
-
-scalar JSONObject
-
-type Message {
-  body: String
-  from: String
-}
-
-type Mutation {
-  bid(input: BidInput!): Bid
-  createPost(input: CreatePostInput!): Post!
-  deletePost(id: Int!): Post!
-  generateCodebase(args: GenCodebaseInput): Boolean
-  sendMessage(input: SendMessageInput!): Message!
-  updatePost(id: Int!, input: UpdatePostInput!): Post!
-}
-
-type Post {
-  author: String!
-  body: String
-  createdAt: DateTime!
-  id: Int!
-  title: String!
-  updatedAt: DateTime!
-}
-
-"""About the Redwood queries."""
-type Query {
-  """
-  A field that spells out the letters of the alphabet
-  Maybe you want to @stream this field ;)
-  """
-  alphabet: [String!]!
-  auction(id: ID!): Auction
-  auctions: [Auction!]!
-  chat(input: ChatInput!): [ChatResponse!]!
-  codebase: String
-
-  """A field that resolves fast."""
-  fastField: String!
-  loadFile(path: String): String
-  post(id: Int!): Post
-  posts: [Post!]!
-
-  """Fetches the Redwood root schema."""
-  redwood: Redwood
-  room(id: ID!): [Message!]!
-  rooms: [ID!]!
-
-  """
-  A field that resolves slowly.
-  Maybe you want to @defer this field ;)
-  """
-  slowField(waitFor: Int! = 5000): String
-}
-
-"""
-The RedwoodJS Root Schema
-
-Defines details about RedwoodJS such as the current user and version information.
-"""
-type Redwood {
-  """The current user."""
-  currentUser: JSON
-
-  """The version of Prisma."""
-  prismaVersion: String
-
-  """The version of Redwood."""
-  version: String
-}
-
-input SendMessageInput {
-  body: String!
-  from: String!
-  roomId: ID!
-}
-
-type Subscription {
-  countdown(from: Int!, interval: Int!): Int!
-  newMessage(roomId: ID!): Message!
-}
-
-scalar Time
-
-input UpdatePostInput {
-  author: String
-  body: String
-  title: String
-}
-```
 
 ### DB
 
@@ -695,11 +524,17 @@ import { logger } from 'src/lib/logger'
 
 export const CODEBASE = 'CODEBASE_TOC.md'
 
-export const readCodebaseFile = (filePathToRead?: string) => {
+export const readCodebaseFile = () => {
   const paths = getPaths()
-  const filePath = path.join(paths.base, filePathToRead || CODEBASE)
-  logger.debug({ filePath }, 'Reading file')
+  const filePath = path.join(paths.base, '.rw-chatbot', CODEBASE)
+  logger.debug({ filePath }, 'Reading codebase file')
   return fs.readFileSync(filePath, 'utf-8')
+}
+
+export const readFile = (filePath: string) => {
+  const paths = getPaths()
+  const file = path.join(paths.base, filePath)
+  return fs.readFileSync(file, 'utf-8')
 }
 
 ```
@@ -859,6 +694,21 @@ const generateDocumentHash = (filePath: string): string => {
   return crypto.createHash('md5').update(fileContent).digest('hex')
 }
 
+const sortAndSaveHashes = () => {
+  logger.info('Sorting and saving hashes')
+  try {
+    const hashContent = fs.readFileSync(HASH_FILE, 'utf-8')
+    const hashes = JSON.parse(hashContent)
+    const sortedHashes = Object.fromEntries(
+      Object.entries(hashes).sort(([a], [b]) => a.localeCompare(b))
+    )
+    fs.writeFileSync(HASH_FILE, JSON.stringify(sortedHashes, null, 2))
+    logger.info('Sorted and saved hashes')
+  } catch (error) {
+    logger.error({ error }, 'Error sorting and saving hashes')
+  }
+}
+
 export const generateDocumentation = async () => {
   const docsPath = process.env.REDWOOD_DOCS_PATH
   logger.info({ docsPath }, 'Generating documentation')
@@ -907,6 +757,9 @@ export const generateDocumentation = async () => {
       logger.info({ name, filepath: fullPath }, 'File unchanged, skipping')
     }
   }
+
+  // Sort and save hashes after processing all files
+  sortAndSaveHashes()
 
   logger.info(':: Documentation generation and upload complete ::')
 }
@@ -1637,7 +1490,7 @@ import type {
 } from 'types/codebase'
 import type { GenCodebaseInput } from 'types/shared-schema-types'
 
-import { readCodebaseFile } from 'src/lib/codebaseGenerator/codebase'
+import { readCodebaseFile, readFile } from 'src/lib/codebaseGenerator/codebase'
 import { generate } from 'src/lib/codebaseGenerator/codebaseGenerator'
 
 export const generateCodebase: GenerateCodebaseResolver = async ({
@@ -1653,7 +1506,7 @@ export const codebase: CodebaseResolver = async () => {
 }
 
 export const loadFile: LoadFileResolver = async ({ path }) => {
-  return await readCodebaseFile(path)
+  return await readFile(path)
 }
 
 ```
@@ -2790,6 +2643,7 @@ import type {
   FindCodebaseQueryVariables,
 } from 'types/graphql'
 
+import { Link, routes } from '@redwoodjs/router'
 import type {
   CellSuccessProps,
   CellFailureProps,
@@ -2820,7 +2674,30 @@ export const Failure = ({
 export const Success = ({
   codebase,
 }: CellSuccessProps<FindCodebaseQuery, FindCodebaseQueryVariables>) => {
-  return <Markdown>{codebase}</Markdown>
+  const truncatedCodebase = codebase.split('\n').slice(0, 70).join('\n')
+  return (
+    <>
+      <div className="my-4 text-center">
+        <Link
+          to={routes.viewFile({ path: `.rw-chatbot/CODEBASE_TOC.md` })}
+          className="text-sm font-semibold leading-6 text-green-600"
+        >
+          View Complete Codebase <span aria-hidden="true">→</span>
+        </Link>
+      </div>
+      <div className="my-4 rounded-lg border border-solid border-gray-200 bg-white p-12">
+        <Markdown>{truncatedCodebase}</Markdown>
+      </div>
+      <div className="mt-y text-center">
+        <Link
+          to={routes.viewFile({ path: `.rw-chatbot/CODEBASE_TOC.md` })}
+          className="text-sm font-semibold leading-6 text-green-600"
+        >
+          View Complete Codebase <span aria-hidden="true">→</span>
+        </Link>
+      </div>
+    </>
+  )
 }
 
 ```
